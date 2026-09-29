@@ -8,7 +8,7 @@
 #include <time.h>
 
 // --- Definições de Chaves e Ficheiros ---
-#define IPC_CONFIG_FILE "config.txt"
+#define IPC_CONFIG_FILE "config/config.txt"
 
 // IDs para ftok
 #define KEY_MQ_URGENT 'U'
@@ -28,10 +28,10 @@ typedef struct {
   int msg_type; // MSG_NEW_EMERGENCY, etc.
   char source[20];
   char target[20];
-  char patient_id[15];
+  char patient_id[16];
   int operation_id;
   time_t timestamp;
-  char data[512];
+  char data[1024];
 } hospital_message_t;
 
 // Tipos de Mensagem
@@ -45,6 +45,7 @@ typedef struct {
 #define MSG_CRITICAL_STATUS 8
 #define MSG_TRANSFER_PATIENT 9
 #define MSG_REJECT_PATIENT 10
+#define MSG_RESTOCK 11
 
 // --- Named Pipes ---
 #define PIPE_INPUT "input_pipe"
@@ -68,6 +69,8 @@ typedef struct {
 int create_msg_queue(key_t key);
 int create_shm(key_t key, size_t size);
 sem_t *create_sem(const char *name, int initial_value);
+int create_fifo(const char *path);
+int cleanup_project_ipc(void);
 
 void remove_msg_queue(int msgid);
 void remove_shm(int shmid);

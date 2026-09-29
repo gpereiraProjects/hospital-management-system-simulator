@@ -17,7 +17,7 @@
 #include "../include/sync.h"
 
 typedef struct {
-  char id[15];
+  char id[MAX_PATIENT_ID];
   int triage_level;
   int is_active;
   time_t arrival;
@@ -32,13 +32,11 @@ static global_statistics_t *g_stats = NULL;
 
 static volatile sig_atomic_t keep_running = 1;
 static int mq_normal_id = -1;
-static pthread_t t_man; // Global para poder ser cancelada
+static pthread_t t_man;
 
 static void handle_shutdown(int s) {
   (void)s;
   keep_running = 0;
-  // OBRIGA o msgrcv a desbloquear imediatamente
-  pthread_cancel(t_man);
 }
 
 int get_next(void) {
@@ -103,15 +101,10 @@ void *manager(void *arg) {
   size_t sz = sizeof(hospital_message_t) - sizeof(long);
   printf("[TRIAGE] Manager pronto.\n");
 
-  // Permite que esta thread seja cancelada a qualquer momento
-  pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
   while (keep_running) {
     if (msgrcv(mq_normal_id, &msg, sz, 0, 0) == -1) {
       if (errno == EINTR)
         continue;
-      // Se foi cancelada, morre aqui
       break;
     }
     if (msg.msg_type != MSG_NEW_EMERGENCY && msg.msg_type != MSG_NEW_APPOINTMENT)
@@ -130,10 +123,7 @@ void *manager(void *arg) {
       snprintf(patients[slot].id, sizeof(patients[slot].id), "%s", msg.patient_id);
       if (msg.msg_type == MSG_NEW_EMERGENCY) {
         patients[slot].type = 1;
-        int p = 3;
-        if (strstr(msg.data, "triage:"))
-          sscanf(msg.data + strcspn(msg.data, ":") + 1, "%d", &p);
-        patients[slot].triage_level = p;
+        patients[slot].triage_level = msg.operation_id;
         if (g_stats) {
           pthread_mutex_lock(&g_stats->mutex);
           g_stats->total_emergency_patients++;
@@ -182,8 +172,11 @@ int triage_main(int argc, char *argv[]) {
 
   key_t k_stats = ftok(IPC_CONFIG_FILE, KEY_SHM_STATS);
   int id_stats = shmget(k_stats, sizeof(global_statistics_t), 0666);
-  if (id_stats != -1)
+  if (id_stats != -1) {
     g_stats = shmat(id_stats, NULL, 0);
+    if (g_stats == (void *)-1)
+      g_stats = NULL;
+  }
 
   mq_normal_id = msgget(ftok(IPC_CONFIG_FILE, KEY_MQ_NORMAL), 0666);
 

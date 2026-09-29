@@ -21,7 +21,7 @@
 
 typedef struct {
   int operation_id;
-  char patient_id[15];
+  char patient_id[MAX_PATIENT_ID];
   char type[10];
   int room_index;
   int lab_completed;
@@ -42,13 +42,11 @@ static volatile sig_atomic_t keep_running = 1;
 static int mq_urgent_id = -1;
 static int mq_resp_id = -1;
 static sem_t *sem_bo1 = NULL, *sem_bo2 = NULL, *sem_bo3 = NULL, *sem_teams = NULL;
-static pthread_t t_manager, t_resp; // Globais para cancel
+static pthread_t t_manager, t_resp;
 
 static void handle_shutdown(int s) {
   (void)s;
   keep_running = 0;
-  pthread_cancel(t_manager);
-  pthread_cancel(t_resp);
 }
 
 int get_surgery_duration(const char *type) {
@@ -87,9 +85,6 @@ void *thread_response_monitor(void *arg) {
   (void)arg;
   hospital_message_t msg;
   size_t msg_sz = sizeof(hospital_message_t) - sizeof(long);
-  pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
   while (keep_running) {
     if (msgrcv(mq_resp_id, &msg, msg_sz, 0, 0) == -1) {
       if (errno == EINTR)
@@ -194,9 +189,6 @@ void *thread_surgery_manager(void *arg) {
   hospital_message_t msg;
   size_t msg_sz = sizeof(hospital_message_t) - sizeof(long);
   printf("[SURGERY] Manager pronto.\n");
-  pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
   while (keep_running) {
     if (msgrcv(mq_urgent_id, &msg, msg_sz, MSG_NEW_SURGERY, 0) == -1) {
       if (errno == EINTR)
@@ -252,10 +244,16 @@ int surgery_main(int argc, char *argv[]) {
   int id_stats = shmget(k_stats, sizeof(global_statistics_t), 0666);
   int id_bo = shmget(k_bo, sizeof(surgery_block_shm_t), 0666);
 
-  if (id_stats != -1)
+  if (id_stats != -1) {
     g_stats = shmat(id_stats, NULL, 0);
-  if (id_bo != -1)
+    if (g_stats == (void *)-1)
+      g_stats = NULL;
+  }
+  if (id_bo != -1) {
     g_shm_bo = shmat(id_bo, NULL, 0);
+    if (g_shm_bo == (void *)-1)
+      g_shm_bo = NULL;
+  }
 
   mq_urgent_id = msgget(ftok(IPC_CONFIG_FILE, KEY_MQ_URGENT), 0666);
   mq_resp_id = msgget(ftok(IPC_CONFIG_FILE, KEY_MQ_RESP), 0666);

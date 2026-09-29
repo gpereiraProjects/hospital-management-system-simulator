@@ -19,7 +19,7 @@
 #include "../include/sync.h"
 
 typedef struct {
-  char patient_id[15];
+  char patient_id[MAX_PATIENT_ID];
   char test_type[10];
 } test_req_t;
 
@@ -28,12 +28,11 @@ static global_statistics_t *g_stats = NULL;
 static volatile sig_atomic_t keep_running = 1;
 static int mq_urgent_id = -1, mq_resp_id = -1;
 static sem_t *sem_lab1 = NULL, *sem_lab2 = NULL;
-static pthread_t t; // Global para cancel
+static pthread_t t;
 
 static void handle_shutdown(int s) {
   (void)s;
   keep_running = 0;
-  pthread_cancel(t);
 }
 
 void generate_result(const char *pid, const char *type) {
@@ -95,9 +94,6 @@ void *thread_manager(void *arg) {
   hospital_message_t msg;
   size_t sz = sizeof(hospital_message_t) - sizeof(long);
   printf("[LAB] Thread Manager iniciada.\n");
-  pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
   while (keep_running) {
     if (msgrcv(mq_urgent_id, &msg, sz, MSG_LAB_REQUEST, 0) != -1) {
       printf("[LAB] Pedido recebido: %s (%s)\n", msg.patient_id, msg.data);
@@ -136,8 +132,11 @@ int laboratory_main(int argc, char *argv[]) {
 
   key_t k_stats = ftok(IPC_CONFIG_FILE, KEY_SHM_STATS);
   int id_stats = shmget(k_stats, sizeof(global_statistics_t), 0666);
-  if (id_stats != -1)
+  if (id_stats != -1) {
     g_stats = shmat(id_stats, NULL, 0);
+    if (g_stats == (void *)-1)
+      g_stats = NULL;
+  }
 
   mq_urgent_id = msgget(ftok(IPC_CONFIG_FILE, KEY_MQ_URGENT), 0666);
   mq_resp_id = msgget(ftok(IPC_CONFIG_FILE, KEY_MQ_RESP), 0666);

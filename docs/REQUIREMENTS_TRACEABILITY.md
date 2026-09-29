@@ -20,28 +20,28 @@ Status values:
 | ARC-01 | One central process and four specialized child processes | Implemented | `main.c` creates triage, surgery, pharmacy, and laboratory children | Integration test verifies PIDs and clean exit |
 | ARC-02 | Required thread model in every component | Partial | Required triage monitors, pharmacy restock/statistics workers, and per-lab managers are absent | Runtime thread-role assertions and scenario tests |
 | IPC-01 | Three System V message queues | Implemented | Urgent, normal, and response queues are created | IPC lifecycle integration test |
-| IPC-02 | Five System V shared-memory segments with usable state | Partial | Five segments are created; pharmacy, laboratory, and critical-log state are not functionally integrated | State transition tests for every segment |
-| IPC-03 | Five named pipes | Missing | Only `input_pipe` is created | Startup test checks all required FIFOs, or a documented architecture change narrows the requirement |
-| IPC-04 | Seven named POSIX semaphores | Partial | Seven are created, but stale-instance handling and error rollback are unsafe | Repeated-start and failed-start tests |
-| IPC-05 | Shared-memory mutexes initialized for inter-process use | Missing | Only the statistics mutex explicitly uses `PTHREAD_PROCESS_SHARED` | Cross-process synchronization tests |
-| IPC-06 | Cleanup affects only resources owned by this application | Missing | Current `ipc_clean` can remove unrelated `/dev/shm` and IPC resources | Isolation test with unrelated sentinel resources |
+| IPC-02 | Five System V shared-memory segments with usable state | Partial | All five segments and their mutexes/state are initialized; critical-log state is not yet functionally integrated | State transition tests for every segment |
+| IPC-03 | Five named pipes | Implemented | All five project FIFOs are created privately and removed on shutdown | Startup and shutdown checks in `test_phase2.sh` |
+| IPC-04 | Seven named POSIX semaphores | Implemented | Exclusive creation, stale-resource recovery under an instance lock, checked failures, and rollback are in place | Repeated-start check in `test_phase2.sh` |
+| IPC-05 | Shared-memory mutexes initialized for inter-process use | Implemented | Statistics, rooms, teams, medicines, laboratories, and critical-log mutexes use `PTHREAD_PROCESS_SHARED` | Startup succeeds with every shared structure initialized |
+| IPC-06 | Cleanup affects only resources owned by this application | Implemented | Cleanup resolves only this project's `ftok` keys, semaphore names, and FIFO paths while holding an instance lock | Exact-resource cleanup and second-instance checks |
 
 ## Commands and time model
 
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
-| CMD-01 | Parse and validate all documented command formats | Missing | Parsing identifies little beyond command type and ID | Table-driven parser unit tests |
-| CMD-02 | Support all seven command families and component-specific `STATUS` | Partial | `RESTOCK` and component-specific status are absent; other commands are partly interpreted | Positive and negative tests per command |
+| CMD-01 | Parse and validate all documented command formats | Implemented | A typed parser validates identifiers, ranges, enums, lists, medicines, tests, and cross-field rules | Table-driven tests in `tests/unit/test_command_parser.c` |
+| CMD-02 | Support all seven command families and component-specific `STATUS` | Partial | All families parse; manual restock execution and filtered component status remain to be implemented | End-to-end behavior tests per command |
 | CMD-03 | Honor `init` and `scheduled` simulation times | Missing | Requests are dispatched immediately and scheduled time is ignored | Deterministic simulated-clock tests |
-| CMD-04 | Preserve commands across fragmented FIFO reads | Missing | Each `read()` buffer is tokenized independently | Fragmented-write integration test |
-| CMD-05 | Reject malformed or unknown commands safely | Missing | Unknown commands can reach `msgsnd` with message type zero | Invalid-command corpus with error assertions |
+| CMD-04 | Preserve commands across fragmented FIFO reads | Implemented | A persistent bounded input buffer retains incomplete lines across reads | Fragmented-write check in `test_phase2.sh` |
+| CMD-05 | Reject malformed or unknown commands safely | Implemented | Invalid commands are logged and never enter a message queue | Parser corpus and integration assertion |
 
 ## Triage
 
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
 | TRI-01 | Separate emergency and appointment scheduling rules | Partial | One shared array and a simplified selector are used | Ordering tests for both classes |
-| TRI-02 | Emergency ordering by critical state, triage level, then arrival | Partial | Triage extraction reads the first colon-delimited value, often `init`, rather than `triage` | Deterministic priority test |
+| TRI-02 | Emergency ordering by critical state, triage level, then arrival | Partial | Validated triage level is now transferred as a typed field; critical-stability ordering is still absent | Deterministic priority test |
 | TRI-03 | Appointment ordering by scheduled time | Missing | Scheduled time is not parsed or used | Appointment-order test |
 | TRI-04 | Stability decreases and triggers critical/transfer states | Missing | Stability is not stored or monitored | Escalation and transfer tests |
 | TRI-05 | Coordinate requested analyses and medication | Missing | Triage does not dispatch or await these dependencies | End-to-end emergency workflow test |
@@ -55,7 +55,7 @@ Status values:
 | SUR-02 | PREOP and requested medication complete before surgery | Partial | PREOP and one hard-coded medicine are requested; command contents are ignored | Dependency and requested-item tests |
 | SUR-03 | Scheduled time, urgency, and configured capacity affect scheduling | Missing | These fields are not enforced and capacity is hard-coded to ten | Scheduling and saturation tests |
 | SUR-04 | Medical-team count and room ownership are synchronized | Partial | Semaphores exist; initialization, cancellation, and cleanup need hardening | Contention and shutdown tests |
-| SUR-05 | Configured random surgery and cleanup durations | Partial | Surgery uses ranges; cleanup configuration is not parsed | Seeded duration-boundary tests |
+| SUR-05 | Configured random surgery and cleanup durations | Implemented | Surgery and cleanup ranges are both loaded from configuration and used | Seeded duration-boundary tests |
 
 ## Pharmacy
 
@@ -64,7 +64,7 @@ Status values:
 | PHA-01 | Maintain stock and reservations for 15 medicines | Missing | Shared structures/config exist but processing does not use them | Stock-invariant tests |
 | PHA-02 | Prioritize URGENT, HIGH, and NORMAL requests | Partial | Urgent and normal workers exist; HIGH semantics are absent | Mixed-priority ordering test |
 | PHA-03 | Wait without busy waiting when stock is insufficient | Missing | Availability is not checked | Stock-exhaustion condition-variable test |
-| PHA-04 | Automatic and manual restocking | Missing | Config values are not parsed and `RESTOCK` is unsupported | Threshold and manual-restock tests |
+| PHA-04 | Automatic and manual restocking | Partial | Restock configuration and manual commands are validated, but stock mutation is not yet implemented | Threshold and manual-restock tests |
 | PHA-05 | Detailed delivery receipt | Missing | Current receipt only records an ID and `ENTREGUE` | Receipt golden-file test |
 
 ## Laboratory
@@ -81,12 +81,12 @@ Status values:
 
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
-| SYS-01 | Parse and validate every documented configuration value | Partial | Cleanup and restock values are not parsed; cross-field validation is absent | Complete config unit suite |
+| SYS-01 | Parse and validate every documented configuration value | Partial | All documented keys are loaded and core cross-field checks exist; numeric parsing and complete bounds still need hardening | Complete config unit suite |
 | SYS-02 | Thread-safe and coherent multi-process logging | Partial | Each process inherits a process-private mutex and stream state | Concurrent integrity test or single-writer logger |
 | SYS-03 | Critical-event shared-memory ring buffer | Missing | Segment and type exist but no events are written | Ring-buffer wraparound test |
 | SYS-04 | Accurate real-time and snapshot statistics | Partial | Several counters/timers are never updated and a total is labelled as an average | Known-workload metrics test |
-| SYS-05 | Safe `SIGINT`, `SIGUSR1`, `SIGUSR2`, and `SIGCHLD` | Partial | `SIGCHLD` is absent and statistics handlers call non-async-signal-safe operations | Signal integration suite |
-| SYS-06 | Graceful shutdown waits for work, reaps children, and removes owned IPC | Partial | Children are cancelled and generic `wait()` calls are used; detached work is not coordinated | Shutdown-under-load test |
+| SYS-05 | Safe `SIGINT`, `SIGUSR1`, `SIGUSR2`, and `SIGCHLD` | Implemented | Handlers only set atomic flags; reporting, snapshots, child reaping, and cleanup run in normal control flow | Signal checks in `test_phase2.sh` |
+| SYS-06 | Graceful shutdown waits for work, reaps children, and removes owned IPC | Partial | Input threads are tracked, exact children are reaped, and IPC is removed safely; detached surgery/lab work still needs explicit coordination | Shutdown-under-load test |
 | SYS-07 | Check all system-call, allocation, and pthread results | Partial | Many critical return values are ignored | Static checklist and fault-injection tests |
 
 ## Tests and delivery quality
@@ -94,8 +94,8 @@ Status values:
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
 | TST-01 | All seven mandatory scenarios | Partial | Three scripts exist, but required scenarios and assertions are incomplete | Automated scenario suite |
-| TST-02 | Tests fail when expected behavior is absent | Missing | Scripts mostly sleep, signal, and print completion | Exit-code and assertion review |
-| TST-03 | Zero leaks, detected races, and deadlocks | Unverified | No reproducible reports correspond to the current source | Sanitizer and Valgrind jobs tied to a commit |
+| TST-02 | Tests fail when expected behavior is absent | Partial | Parser and Phase 2 integration tests assert behavior; the three original scenarios still mostly sleep and print | Convert remaining scenarios to bounded assertions |
+| TST-03 | Zero leaks, detected races, and deadlocks | Partial | Phase 2 integration passes AddressSanitizer and UndefinedBehaviorSanitizer; race/deadlock tooling and full workloads remain | Valgrind/Helgrind/DRD jobs tied to a commit |
 | TST-04 | Reproducible clean-checkout build | Implemented | Release, debug, and sanitizer profiles build without warnings using GCC 15 and Clang 21 on Ubuntu/WSL; Dockerfile targets Ubuntu 24.04 | Preserve the matrix in continuous integration |
 
 ## Implementation order

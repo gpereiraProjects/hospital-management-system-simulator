@@ -1,7 +1,10 @@
 #ifndef STATS_H
 #define STATS_H
 
+#include "hospital.h"
+
 #include <pthread.h>
+#include <stdio.h>
 #include <time.h>
 
 // --- SHM1: Estatísticas Globais (PDF Pag 16) ---
@@ -52,5 +55,10 @@ typedef struct {
   time_t system_start_time;
   int simulation_time_units; // Tempo lógico atual
 } global_statistics_t;
+
+void stats_init_pointers(global_statistics_t *s, surgery_block_shm_t *b, pharmacy_shm_t *p,
+                         lab_queue_shm_t *l);
+void print_stats(FILE *out);
+int save_stats_snapshot(char *path, size_t path_size);
 
 #endif

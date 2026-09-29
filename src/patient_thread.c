@@ -1,117 +1,130 @@
+#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/msg.h>
 #include <time.h>
-#include <unistd.h>
 
-#include "../include/hospital.h"
 #include "../include/ipc.h"
 #include "../include/log.h"
+#include "../include/patient_thread.h"
 #include "../include/stats.h"
 
 extern int mq_urgent_id;
 extern int mq_normal_id;
 extern global_statistics_t *g_stats_ptr;
 
-typedef struct {
-  char command_line[512];
-} thread_arg_t;
+static pthread_mutex_t lifecycle_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t lifecycle_cond = PTHREAD_COND_INITIALIZER;
+static size_t active_threads;
 
-static void parse_command(char *cmd, hospital_message_t *msg) {
-  char *saveptr;
-  char buffer[512];
-  snprintf(buffer, sizeof(buffer), "%s", cmd);
-
-  char *token = strtok_r(buffer, " ", &saveptr);
-  if (!token)
-    return;
-
-  if (strcmp(token, "EMERGENCY") == 0) {
-    msg->msg_type = MSG_NEW_EMERGENCY;
-    strcpy(msg->target, "TRIAGE");
-  } else if (strcmp(token, "APPOINTMENT") == 0) {
-    msg->msg_type = MSG_NEW_APPOINTMENT;
-    strcpy(msg->target, "TRIAGE");
-  } else if (strcmp(token, "SURGERY") == 0) {
-    msg->msg_type = MSG_NEW_SURGERY;
-    strcpy(msg->target, "SURGERY");
-  } else if (strcmp(token, "PHARMACY_REQUEST") == 0) {
-    msg->msg_type = MSG_PHARMACY_REQUEST;
-    strcpy(msg->target, "PHARMACY");
-  } else if (strcmp(token, "LAB_REQUEST") == 0) {
-    msg->msg_type = MSG_LAB_REQUEST;
-    strcpy(msg->target, "LAB");
-  }
-
-  token = strtok_r(NULL, " ", &saveptr);
-  if (token) {
-    snprintf(msg->patient_id, sizeof(msg->patient_id), "%s", token);
-  } else {
-    strcpy(msg->patient_id, "UNKNOWN");
-  }
-
-  snprintf(msg->data, sizeof(msg->data), "%s", cmd);
-  msg->timestamp = time(NULL);
-
-  /* O msg_priority (mtype) TEM de ser igual ao msg_type para que os
-  // processos destinatários (Surgery, Lab, Pharm) consigam filtrar e capturar a
-   mensagem.*/
-  msg->msg_priority = msg->msg_type;
+static void thread_finished(void) {
+  pthread_mutex_lock(&lifecycle_mutex);
+  active_threads--;
+  if (active_threads == 0)
+    pthread_cond_broadcast(&lifecycle_cond);
+  pthread_mutex_unlock(&lifecycle_mutex);
 }
 
-void *patient_lifecycle_thread(void *arg) {
-  thread_arg_t *args = (thread_arg_t *)arg;
-  hospital_message_t msg;
-  memset(&msg, 0, sizeof(msg));
+static void prepare_message(const command_t *command, hospital_message_t *message) {
+  memset(message, 0, sizeof(*message));
+  snprintf(message->source, sizeof(message->source), "MAIN");
+  snprintf(message->patient_id, sizeof(message->patient_id), "%s", command->id);
+  snprintf(message->data, sizeof(message->data), "%s", command->raw);
+  message->timestamp = time(NULL);
 
-  parse_command(args->command_line, &msg);
-
-  // Seleção de Fila
-  int dest_queue = mq_normal_id;
-
-  // 1. Cirurgias vão sempre para URGENTE
-  if (msg.msg_type == MSG_NEW_SURGERY) {
-    dest_queue = mq_urgent_id;
+  switch (command->kind) {
+  case COMMAND_EMERGENCY:
+    message->msg_type = MSG_NEW_EMERGENCY;
+    message->operation_id = command->triage_level;
+    snprintf(message->target, sizeof(message->target), "TRIAGE");
+    break;
+  case COMMAND_APPOINTMENT:
+    message->msg_type = MSG_NEW_APPOINTMENT;
+    message->operation_id = command->scheduled_time;
+    snprintf(message->target, sizeof(message->target), "TRIAGE");
+    break;
+  case COMMAND_SURGERY:
+    message->msg_type = MSG_NEW_SURGERY;
+    snprintf(message->target, sizeof(message->target), "SURGERY");
+    break;
+  case COMMAND_PHARMACY_REQUEST:
+    message->msg_type = MSG_PHARMACY_REQUEST;
+    snprintf(message->target, sizeof(message->target), "PHARMACY");
+    break;
+  case COMMAND_LAB_REQUEST:
+    message->msg_type = MSG_LAB_REQUEST;
+    snprintf(message->target, sizeof(message->target), "LAB");
+    break;
+  case COMMAND_RESTOCK:
+    message->msg_type = MSG_RESTOCK;
+    snprintf(message->target, sizeof(message->target), "PHARMACY");
+    snprintf(message->patient_id, sizeof(message->patient_id), "RESTOCK");
+    break;
+  case COMMAND_STATUS:
+    break;
   }
-  // 2. Pedidos diretos (Farm/Lab) urgentes vão para URGENTE
-  else if ((msg.msg_type == MSG_PHARMACY_REQUEST || msg.msg_type == MSG_LAB_REQUEST) &&
-           strstr(args->command_line, "URGENT") != NULL) {
-    dest_queue = mq_urgent_id;
-  }
-  // 3. Emergências e Consultas vão para NORMAL
-  else if (msg.msg_type == MSG_NEW_EMERGENCY || msg.msg_type == MSG_NEW_APPOINTMENT) {
-    dest_queue = mq_normal_id;
-  }
+  message->msg_priority = message->msg_type;
+}
 
-  size_t sz = sizeof(hospital_message_t) - sizeof(long);
-  if (msgsnd(dest_queue, &msg, sz, 0) == -1) {
-    perror("[PatientThread] Erro msgsnd");
-  } else {
-    if (g_stats_ptr) {
+static void *patient_lifecycle_thread(void *argument) {
+  command_t *command = argument;
+  hospital_message_t message;
+  prepare_message(command, &message);
+
+  int urgent =
+      command->kind == COMMAND_SURGERY ||
+      ((command->kind == COMMAND_PHARMACY_REQUEST || command->kind == COMMAND_LAB_REQUEST) &&
+       command->priority == COMMAND_PRIORITY_URGENT);
+  int destination = urgent ? mq_urgent_id : mq_normal_id;
+  size_t size = sizeof(message) - sizeof(message.msg_priority);
+
+  if (msgsnd(destination, &message, size, IPC_NOWAIT) == -1) {
+    char detail[160];
+    snprintf(detail, sizeof(detail), "%s: %s", command->id, strerror(errno));
+    log_event(LOG_ERROR, "INPUT", "QUEUE_REJECT", detail);
+    if (g_stats_ptr != NULL) {
       pthread_mutex_lock(&g_stats_ptr->mutex);
-      g_stats_ptr->total_operations++;
+      g_stats_ptr->system_errors++;
       pthread_mutex_unlock(&g_stats_ptr->mutex);
     }
+  } else if (g_stats_ptr != NULL) {
+    pthread_mutex_lock(&g_stats_ptr->mutex);
+    g_stats_ptr->total_operations++;
+    pthread_mutex_unlock(&g_stats_ptr->mutex);
   }
 
-  free(args);
+  free(command);
+  thread_finished();
   return NULL;
 }
 
-void start_patient_thread(const char *command) {
-  pthread_t t;
-  thread_arg_t *args = malloc(sizeof(thread_arg_t));
-  if (!args)
-    return;
+int start_patient_thread(const command_t *command) {
+  command_t *copy = malloc(sizeof(*copy));
+  if (copy == NULL)
+    return -1;
+  *copy = *command;
 
-  snprintf(args->command_line, sizeof(args->command_line), "%s", command);
-  args->command_line[strcspn(args->command_line, "\n")] = 0;
+  pthread_mutex_lock(&lifecycle_mutex);
+  active_threads++;
+  pthread_mutex_unlock(&lifecycle_mutex);
 
-  if (pthread_create(&t, NULL, patient_lifecycle_thread, args) != 0) {
-    free(args);
-  } else {
-    pthread_detach(t);
+  pthread_t thread;
+  int error = pthread_create(&thread, NULL, patient_lifecycle_thread, copy);
+  if (error != 0) {
+    free(copy);
+    thread_finished();
+    errno = error;
+    return -1;
   }
+  pthread_detach(thread);
+  return 0;
+}
+
+void wait_for_patient_threads(void) {
+  pthread_mutex_lock(&lifecycle_mutex);
+  while (active_threads != 0)
+    pthread_cond_wait(&lifecycle_cond, &lifecycle_mutex);
+  pthread_mutex_unlock(&lifecycle_mutex);
 }

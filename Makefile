@@ -20,6 +20,7 @@ SOURCES := \
 	src/log_manager.c \
 	src/stats_manager.c \
 	src/config_parser.c \
+	src/command_parser.c \
 	src/time_simulation.c
 
 OBJECTS := $(SOURCES:src/%.c=$(OBJ_DIR)/%.o)
@@ -70,7 +71,9 @@ $(BIN_DIR):
 run: release
 	./$(BUILD_ROOT)/release/bin/$(PROJECT)
 
-test: release
+test: test_phase2
+
+test_legacy: release
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_basic.sh
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_concurrent.sh
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_stress.sh
@@ -83,6 +86,15 @@ test_concurrent: release
 
 test_stress: release
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_stress.sh
+
+test_parser:
+	@mkdir -p $(BUILD_ROOT)/tests
+	$(CC) $(CPPFLAGS) $(BASE_CFLAGS) -O0 -g3 tests/unit/test_command_parser.c \
+		src/command_parser.c -o $(BUILD_ROOT)/tests/test_command_parser
+	./$(BUILD_ROOT)/tests/test_command_parser
+
+test_phase2: release test_parser
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_phase2.sh
 
 format:
 	clang-format -i $(SOURCES) include/*.h
@@ -113,5 +125,5 @@ ipc_clean:
 -include $(DEPENDENCIES)
 
 .PHONY: release debug sanitize build run test test_basic test_concurrent \
-	test_stress format format-check check_memory check_threads check_deadlock \
+	test_stress test_legacy test_parser test_phase2 format format-check check_memory check_threads check_deadlock \
 	clean clean-runtime ipc_clean

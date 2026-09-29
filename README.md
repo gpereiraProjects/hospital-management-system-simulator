@@ -105,17 +105,21 @@ docker run --rm -it hospital-system
 ```bash
 make format         # format C sources and headers
 make format-check   # verify formatting without modifying files
+make test           # run the reliable automated suite
+make test_parser    # run the typed-command parser unit suite
+make test_phase2    # run parser, FIFO, signal, lock, and cleanup assertions
 make clean          # remove build products only
 make clean-runtime  # remove this project's generated runtime files
 ```
 
-The old broad IPC cleanup command is deliberately disabled until cleanup is
-made instance-specific. Do not remove global `/dev/shm` or System V resources
-belonging to other applications.
+Runtime cleanup is instance-specific and only resolves this application's known
+keys and names. The old standalone broad cleanup command remains disabled so it
+can never remove `/dev/shm` or System V resources belonging to other programs.
 
-The existing shell scenarios are retained as a baseline, but are not yet a
-reliable automated test suite. Assertion-based tests are tracked in the
-[implementation roadmap](docs/REQUIREMENTS_TRACEABILITY.md).
+The parser and Phase 2 integration suites are assertion-based. The three older,
+long-running scenarios are retained as a behavioral baseline while they are
+converted into bounded automated tests; progress is tracked in the
+[requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md).
 
 ## Documentation
 

@@ -5,7 +5,7 @@
 #include <time.h>
 
 // --- Constantes Globais ---
-#define MAX_PATIENT_ID 15
+#define MAX_PATIENT_ID 16
 #define MAX_MED_NAME 30
 #define MAX_ROOMS 3
 #define MAX_MED_TYPES 15

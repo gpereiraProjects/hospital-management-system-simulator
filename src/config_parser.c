@@ -19,6 +19,10 @@ static void trim(char *s) {
 }
 
 int load_config(const char *filename, system_config_t *config) {
+  if (config == NULL)
+    return -1;
+  memset(config, 0, sizeof(*config));
+
   FILE *f = fopen(filename, "r");
   if (!f) {
     char err[256];
@@ -81,6 +85,10 @@ int load_config(const char *filename, system_config_t *config) {
       config->b03_min_duration = atoi(val);
     else if (strcmp(key, "B03_MAX_DURATION") == 0)
       config->b03_max_duration = atoi(val);
+    else if (strcmp(key, "CLEANUP_MIN_TIME") == 0)
+      config->cleanup_min_time = atoi(val);
+    else if (strcmp(key, "CLEANUP_MAX_TIME") == 0)
+      config->cleanup_max_time = atoi(val);
     else if (strcmp(key, "MAX_MEDICAL_TEAMS") == 0)
       config->max_medical_teams = atoi(val);
 
@@ -103,6 +111,10 @@ int load_config(const char *filename, system_config_t *config) {
       config->pharm_prep_time_min = atoi(val);
     else if (strcmp(key, "PHARMACY_PREPARATION_TIME_MAX") == 0)
       config->pharm_prep_time_max = atoi(val);
+    else if (strcmp(key, "AUTO_RESTOCK_ENABLED") == 0)
+      config->auto_restock_enabled = atoi(val);
+    else if (strcmp(key, "RESTOCK_QUANTITY_MULTIPLIER") == 0)
+      config->restock_qty_multiplier = atoi(val);
 
     // --- Medicamentos ---
     // Detecta chaves que não são standard e assume que são medicamentos
@@ -113,6 +125,7 @@ int load_config(const char *filename, system_config_t *config) {
 
       if (stock_str && threshold_str) {
         strncpy(config->med_configs[med_count].name, key, 29);
+        config->med_configs[med_count].name[29] = '\0';
         config->med_configs[med_count].initial_stock = atoi(stock_str);
         config->med_configs[med_count].threshold = atoi(threshold_str);
         med_count++;
@@ -121,6 +134,13 @@ int load_config(const char *filename, system_config_t *config) {
   }
 
   fclose(f);
+  if (config->time_unit_ms <= 0 || config->triage_simultaneous_patients <= 0 ||
+      config->max_medical_teams <= 0 || config->max_tests_lab1 <= 0 ||
+      config->max_tests_lab2 <= 0 || config->cleanup_min_time < 0 ||
+      config->cleanup_max_time < config->cleanup_min_time || med_count != MAX_MED_TYPES) {
+    log_event(LOG_ERROR, "CONFIG", "VALIDATION_FAIL", "Configuracao incompleta ou invalida");
+    return -1;
+  }
   log_event(LOG_INFO, "CONFIG", "LOAD_SUCCESS", "Configuracao carregada com sucesso");
   return 0;
 }

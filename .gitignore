@@ -18,6 +18,7 @@ triage_pipe
 surgery_pipe
 pharmacy_pipe
 lab_pipe
+hospital_system.lock
 
 # === Logs e Ficheiros de Execução ===
 /logs/

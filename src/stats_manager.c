@@ -1,5 +1,4 @@
 #include <pthread.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,26 +67,19 @@ void print_stats(FILE *out) {
   fprintf(out, "==================================\n");
 }
 
-void sigusr1_handler(int signum) {
-  (void)signum;
-  print_stats(stdout);
-}
-
-void sigusr2_handler(int signum) {
-  (void)signum;
+int save_stats_snapshot(char *path, size_t path_size) {
   char filename[128];
   time_t now = time(NULL);
 
   snprintf(filename, sizeof(filename), "results/stats_snapshots/stats_%ld.txt", now);
 
   FILE *f = fopen(filename, "w");
-  if (f) {
-    print_stats(f);
-    fclose(f);
-
-    const char *msg = "[SIGUSR2] Snapshot gerado.\n";
-    if (write(STDOUT_FILENO, msg, strlen(msg)) == -1) {
-      // Ignorar erro de escrita
-    }
-  }
+  if (f == NULL)
+    return -1;
+  print_stats(f);
+  if (fclose(f) != 0)
+    return -1;
+  if (path != NULL && path_size > 0)
+    snprintf(path, path_size, "%s", filename);
+  return 0;
 }
