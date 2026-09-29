@@ -25,8 +25,8 @@ extern int triage_main(int argc, char *argv[]);
 extern int surgery_main(int argc, char *argv[]);
 extern int pharmacy_main(int argc, char *argv[]);
 extern int laboratory_main(int argc, char *argv[]);
-extern void stats_init_pointers(global_statistics_t *s, surgery_block_shm_t *b,
-                                pharmacy_shm_t *p, lab_queue_shm_t *l);
+extern void stats_init_pointers(global_statistics_t *s, surgery_block_shm_t *b, pharmacy_shm_t *p,
+                                lab_queue_shm_t *l);
 extern void sigusr1_handler(int signum);
 extern void sigusr2_handler(int signum);
 
@@ -36,16 +36,14 @@ void start_patient_thread(const char *command);
 // Globais
 volatile sig_atomic_t g_shutdown = 0;
 system_config_t config;
-global_statistics_t *g_stats_ptr =
-    NULL; // Ponteiro global para uso no patient_thread
+global_statistics_t *g_stats_ptr = NULL; // Ponteiro global para uso no patient_thread
 
 // PIDs e IPCs
 pid_t pid_triage = -1, pid_surgery = -1, pid_pharmacy = -1, pid_laboratory = -1;
 int mq_urgent_id = -1, mq_normal_id = -1, mq_resp_id = -1;
-int shm_stats_id = -1, shm_bo_id = -1, shm_pharm_id = -1, shm_lab_id = -1,
-    shm_log_id = -1;
+int shm_stats_id = -1, shm_bo_id = -1, shm_pharm_id = -1, shm_lab_id = -1, shm_log_id = -1;
 
-void cleanup_resources() {
+void cleanup_resources(void) {
   log_event(LOG_INFO, "SYSTEM", "CLEANUP", "A limpar recursos IPC...");
   if (mq_urgent_id != -1)
     msgctl(mq_urgent_id, IPC_RMID, NULL);
@@ -75,9 +73,8 @@ void cleanup_resources() {
   log_close();
 }
 
-void graceful_shutdown() {
-  log_event(LOG_INFO, "SYSTEM", "SHUTDOWN",
-            "Iniciando encerramento gracioso...");
+void graceful_shutdown(void) {
+  log_event(LOG_INFO, "SYSTEM", "SHUTDOWN", "Iniciando encerramento gracioso...");
 
   // Matar filhos
   if (pid_triage > 0)
@@ -137,16 +134,11 @@ int main(int argc, char *argv[]) {
   mq_normal_id = create_msg_queue(ftok(IPC_CONFIG_FILE, KEY_MQ_NORMAL));
   mq_resp_id = create_msg_queue(ftok(IPC_CONFIG_FILE, KEY_MQ_RESP));
 
-  shm_stats_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_STATS),
-                            sizeof(global_statistics_t));
-  shm_bo_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_BO),
-                         sizeof(surgery_block_shm_t));
-  shm_pharm_id =
-      create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_PHARM), sizeof(pharmacy_shm_t));
-  shm_lab_id =
-      create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_LAB), sizeof(lab_queue_shm_t));
-  shm_log_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_LOG),
-                          sizeof(critical_log_shm_t));
+  shm_stats_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_STATS), sizeof(global_statistics_t));
+  shm_bo_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_BO), sizeof(surgery_block_shm_t));
+  shm_pharm_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_PHARM), sizeof(pharmacy_shm_t));
+  shm_lab_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_LAB), sizeof(lab_queue_shm_t));
+  shm_log_id = create_shm(ftok(IPC_CONFIG_FILE, KEY_SHM_LOG), sizeof(critical_log_shm_t));
 
   create_sem(SEM_BO1_NAME, 1);
   create_sem(SEM_BO2_NAME, 1);

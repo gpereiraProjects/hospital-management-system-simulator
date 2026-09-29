@@ -1,73 +1,117 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -Werror -pthread -lrt -g -O2
-LDFLAGS = -pthread -lrt
-INCLUDES = -Iinclude
+CC ?= gcc
+BUILD_TYPE ?= release
 
-# Objetos (Inclui o patient_thread.o essencial)
-OBJS = src/main.o src/triage.o src/surgery.o src/pharmacy.o \
-       src/laboratory.o src/patient_thread.o src/ipc_utils.o \
-       src/sync_utils.o src/log_manager.o src/stats_manager.o \
-       src/config_parser.o src/time_simulation.o
+PROJECT := hospital_system
+BUILD_ROOT := build
+BUILD_DIR := $(BUILD_ROOT)/$(BUILD_TYPE)
+OBJ_DIR := $(BUILD_DIR)/obj
+BIN_DIR := $(BUILD_DIR)/bin
+TARGET := $(BIN_DIR)/$(PROJECT)
 
-# Target principal (Binário na pasta bin para organização)
-TARGET = bin/hospital_system
+SOURCES := \
+	src/main.c \
+	src/triage.c \
+	src/surgery.c \
+	src/pharmacy.c \
+	src/laboratory.c \
+	src/patient_thread.c \
+	src/ipc_utils.c \
+	src/sync_utils.c \
+	src/log_manager.c \
+	src/stats_manager.c \
+	src/config_parser.c \
+	src/time_simulation.c
 
-# Regra principal
-all: directories $(TARGET)
+OBJECTS := $(SOURCES:src/%.c=$(OBJ_DIR)/%.o)
+DEPENDENCIES := $(OBJECTS:.o=.d)
 
-# Linkagem
-$(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
+CPPFLAGS := -Iinclude -D_DEFAULT_SOURCE -MMD -MP
+BASE_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -pthread
+BASE_LDFLAGS := -pthread
+LDLIBS := -lrt
 
-# Compilação dos objetos
-src/%.o: src/%.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+ifeq ($(BUILD_TYPE),release)
+  PROFILE_CFLAGS := -O2 -DNDEBUG
+else ifeq ($(BUILD_TYPE),debug)
+  PROFILE_CFLAGS := -O0 -g3 -DDEBUG
+else ifeq ($(BUILD_TYPE),sanitize)
+  PROFILE_CFLAGS := -O1 -g3 -DDEBUG -fno-omit-frame-pointer -fsanitize=address,undefined
+  PROFILE_LDFLAGS := -fsanitize=address,undefined
+else
+  $(error Unsupported BUILD_TYPE '$(BUILD_TYPE)'; use release, debug, or sanitize)
+endif
 
-# Criação da estrutura de diretórios necessária
-directories:
-	@mkdir -p bin logs results/stats_snapshots results/lab_results results/pharmacy_deliveries
+CFLAGS := $(BASE_CFLAGS) $(PROFILE_CFLAGS) $(EXTRA_CFLAGS)
+LDFLAGS := $(BASE_LDFLAGS) $(PROFILE_LDFLAGS) $(EXTRA_LDFLAGS)
 
-# Debug build
-debug: CFLAGS += -DDEBUG -O0 -ggdb3
-debug: clean $(TARGET)
+.DEFAULT_GOAL := release
 
-# Cleanup simples
+release:
+	$(MAKE) BUILD_TYPE=release build
+
+debug:
+	$(MAKE) BUILD_TYPE=debug build
+
+sanitize:
+	$(MAKE) BUILD_TYPE=sanitize build
+
+build: $(TARGET)
+
+$(TARGET): $(OBJECTS) | $(BIN_DIR)
+	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(LDLIBS)
+
+$(OBJ_DIR)/%.o: src/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(BIN_DIR):
+	@mkdir -p $@
+
+run: release
+	./$(BUILD_ROOT)/release/bin/$(PROJECT)
+
+test: release
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_basic.sh
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_concurrent.sh
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_stress.sh
+
+test_basic: release
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_basic.sh
+
+test_concurrent: release
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_concurrent.sh
+
+test_stress: release
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_stress.sh
+
+format:
+	clang-format -i $(SOURCES) include/*.h
+
+format-check:
+	clang-format --dry-run --Werror $(SOURCES) include/*.h
+
+check_memory: debug
+	valgrind --leak-check=full --show-leak-kinds=all ./$(BUILD_ROOT)/debug/bin/$(PROJECT)
+
+check_threads: debug
+	valgrind --tool=helgrind ./$(BUILD_ROOT)/debug/bin/$(PROJECT)
+
+check_deadlock: debug
+	valgrind --tool=drd ./$(BUILD_ROOT)/debug/bin/$(PROJECT)
+
 clean:
-	rm -f src/*.o $(TARGET)
-	rm -f logs/*.txt
-	rm -f results/*.txt
-	rm -f results/*/*.txt
+	rm -rf $(BUILD_ROOT)
 
-# Limpeza completa de recursos IPC (SHM, Semáforos, Pipes) 
+clean-runtime:
+	rm -f input_pipe triage_pipe surgery_pipe pharmacy_pipe lab_pipe
+	rm -f logs/*.txt results/*.txt results/*/*.txt
+
 ipc_clean:
-	@echo "Removendo recursos IPC..."
-	@rm -f input_pipe triage_pipe surgery_pipe pharmacy_pipe lab_pipe
-	@rm -f /dev/shm/* 2>/dev/null || true
-	@ipcs -q | awk '$$3 ~ /^[0-9]/ {print $$2}' | xargs -r ipcrm -q 2>/dev/null || true
-	@ipcs -m | awk '$$3 ~ /^[0-9]/ {print $$2}' | xargs -r ipcrm -m 2>/dev/null || true
-	@ipcs -s | awk '$$3 ~ /^[0-9]/ {print $$2}' | xargs -r ipcrm -s 2>/dev/null || true
-	@echo "Recursos IPC removidos."
+	@echo "ipc_clean is disabled until project-scoped IPC cleanup is implemented safely."
+	@exit 1
 
-# Testes
-test_basic: $(TARGET)
-	./tests/test_basic.sh
+-include $(DEPENDENCIES)
 
-test_concurrent: $(TARGET)
-	./tests/test_concurrent.sh
-
-test_stress: $(TARGET)
-	./tests/test_stress.sh
-
-test: test_basic test_concurrent test_stress
-
-# Verificações com Valgrind 
-check_memory: $(TARGET)
-	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
-
-check_threads: $(TARGET)
-	valgrind --tool=helgrind ./$(TARGET)
-
-check_deadlock: $(TARGET)
-	valgrind --tool=drd ./$(TARGET)
-
-.PHONY: all clean debug test check_memory check_threads check_deadlock ipc_clean directories
+.PHONY: release debug sanitize build run test test_basic test_concurrent \
+	test_stress format format-check check_memory check_threads check_deadlock \
+	clean clean-runtime ipc_clean

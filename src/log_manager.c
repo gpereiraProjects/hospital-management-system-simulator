@@ -34,7 +34,7 @@ void log_init(const char *filename) {
   pthread_mutex_unlock(&log_mutex);
 }
 
-void log_close() {
+void log_close(void) {
   pthread_mutex_lock(&log_mutex);
   if (log_file) {
     fprintf(log_file, "--- SESSÃO TERMINADA ---\n");
@@ -45,8 +45,8 @@ void log_close() {
 }
 
 // Implementação conforme especificação PDF Pag 23
-void log_event(log_severity_t severity, const char *component,
-               const char *event_type, const char *details) {
+void log_event(log_severity_t severity, const char *component, const char *event_type,
+               const char *details) {
 
   // Se não estiver inicializado ou for DEBUG e debug_mode off, ignora
   if (!log_file || (severity == LOG_DEBUG && !debug_mode))
@@ -85,8 +85,7 @@ void log_event(log_severity_t severity, const char *component,
   pthread_mutex_lock(&log_mutex);
 
   // Formato: [TIMESTAMP] [COMPONENT] [SEVERITY] [EVENT_TYPE] [DETAILS]
-  fprintf(log_file, "[%s] [%s] [%s] [%s] %s\n", time_str, component, sev_str,
-          event_type, details);
+  fprintf(log_file, "[%s] [%s] [%s] [%s] %s\n", time_str, component, sev_str, event_type, details);
 
   // Forçar escrita no disco imediatamente (importante para debugging de
   // crashes)
@@ -94,8 +93,7 @@ void log_event(log_severity_t severity, const char *component,
 
   // Imprimir erros graves também na consola
   if (severity <= LOG_ERROR) {
-    fprintf(stderr, "[%s] [%s] %s: %s\n", component, sev_str, event_type,
-            details);
+    fprintf(stderr, "[%s] [%s] %s: %s\n", component, sev_str, event_type, details);
   }
 
   pthread_mutex_unlock(&log_mutex);

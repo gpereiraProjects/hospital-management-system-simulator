@@ -4,7 +4,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-BINARY="bin/hospital_system"
+BINARY="${BINARY:-build/release/bin/hospital_system}"
 PIPE="input_pipe"
 LOG="logs/hospital_log.txt"
 
@@ -12,8 +12,6 @@ echo -e "${GREEN}=== INICIANDO TESTE DE STRESS ===${NC}"
 
 rm -f $PIPE $LOG
 mkdir -p results/stats_snapshots logs
-pkill -f hospital_system
-
 ./$BINARY &
 PID=$!
 sleep 2

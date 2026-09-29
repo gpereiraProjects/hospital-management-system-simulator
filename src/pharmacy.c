@@ -51,8 +51,7 @@ static void send_pharm_response(const char *target, const char *pid) {
 
 void generate_receipt(const char *pid) {
   char path[256];
-  snprintf(path, sizeof(path), "results/pharmacy_deliveries/RECIBO_%s_%ld.txt",
-           pid, time(NULL));
+  snprintf(path, sizeof(path), "results/pharmacy_deliveries/RECIBO_%s_%ld.txt", pid, time(NULL));
   FILE *f = fopen(path, "w");
   if (f) {
     fprintf(f, "RECIBO FARMACIA: %s\nENTREGUE\n", pid);
@@ -85,8 +84,7 @@ void *thread_worker(void *arg) {
 
   while (keep_running) {
     if (msgrcv(q_id, &msg, sz, MSG_PHARMACY_REQUEST, 0) != -1) {
-      printf("[PHARMACY] Pedido recebido (%s): %s\n", urgent ? "URG" : "NORM",
-             msg.patient_id);
+      printf("[PHARMACY] Pedido recebido (%s): %s\n", urgent ? "URG" : "NORM", msg.patient_id);
       if (sem_wait(sem_pharm) == -1) {
         if (errno == EINTR)
           continue;

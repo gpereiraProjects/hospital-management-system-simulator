@@ -4,7 +4,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-BINARY="bin/hospital_system"
+BINARY="${BINARY:-build/release/bin/hospital_system}"
 PIPE="input_pipe"
 LOG="logs/hospital_log.txt"
 
@@ -13,8 +13,6 @@ echo -e "${GREEN}=== INICIANDO TESTE DE CONCORRÊNCIA ===${NC}"
 # Limpeza e Arranque
 rm -f $PIPE $LOG
 mkdir -p results/stats_snapshots logs
-pkill -f hospital_system
-
 ./$BINARY &
 PID=$!
 sleep 2

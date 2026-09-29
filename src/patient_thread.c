@@ -76,14 +76,12 @@ void *patient_lifecycle_thread(void *arg) {
     dest_queue = mq_urgent_id;
   }
   // 2. Pedidos diretos (Farm/Lab) urgentes vão para URGENTE
-  else if ((msg.msg_type == MSG_PHARMACY_REQUEST ||
-            msg.msg_type == MSG_LAB_REQUEST) &&
+  else if ((msg.msg_type == MSG_PHARMACY_REQUEST || msg.msg_type == MSG_LAB_REQUEST) &&
            strstr(args->command_line, "URGENT") != NULL) {
     dest_queue = mq_urgent_id;
   }
   // 3. Emergências e Consultas vão para NORMAL
-  else if (msg.msg_type == MSG_NEW_EMERGENCY ||
-           msg.msg_type == MSG_NEW_APPOINTMENT) {
+  else if (msg.msg_type == MSG_NEW_EMERGENCY || msg.msg_type == MSG_NEW_APPOINTMENT) {
     dest_queue = mq_normal_id;
   }
 

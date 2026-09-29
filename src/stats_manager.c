@@ -17,8 +17,8 @@ static surgery_block_shm_t *ptr_bo = NULL;
 static pharmacy_shm_t *ptr_pharm = NULL;
 static lab_queue_shm_t *ptr_lab = NULL;
 
-void stats_init_pointers(global_statistics_t *s, surgery_block_shm_t *b,
-                         pharmacy_shm_t *p, lab_queue_shm_t *l) {
+void stats_init_pointers(global_statistics_t *s, surgery_block_shm_t *b, pharmacy_shm_t *p,
+                         lab_queue_shm_t *l) {
   ptr_stats = s;
   ptr_bo = b;
   ptr_pharm = p;
@@ -39,14 +39,12 @@ void print_stats(FILE *out) {
 
   fprintf(out, "ESTATÍSTICAS DO SISTEMA HOSPITALAR\n");
   fprintf(out, "==================================\n");
-  fprintf(out, "Tempo Operação: %d unidades de tempo\n\n",
-          s.simulation_time_units);
+  fprintf(out, "Tempo Operação: %d unidades de tempo\n\n", s.simulation_time_units);
 
   fprintf(out, "CENTRO DE TRIAGEM\n");
   fprintf(out, "Total Emergências: %d\n", s.total_emergency_patients);
   fprintf(out, "Total Consultas: %d\n", s.total_appointments);
-  fprintf(out, "Tempo Médio Espera (Emerg.): %.2f ut\n",
-          s.total_emergency_wait_time);
+  fprintf(out, "Tempo Médio Espera (Emerg.): %.2f ut\n", s.total_emergency_wait_time);
   fprintf(out, "Pacientes Transferidos: %d\n", s.critical_transfers);
   fprintf(out, "Pacientes Rejeitados: %d\n\n", s.rejected_patients);
 
@@ -61,8 +59,8 @@ void print_stats(FILE *out) {
   fprintf(out, "Reposições Stock: %d\n\n", s.auto_restocks);
 
   fprintf(out, "LABORATÓRIOS\n");
-  fprintf(out, "Total Análises: %d (Lab1) + %d (Lab2)\n",
-          s.total_lab_tests_lab1, s.total_lab_tests_lab2);
+  fprintf(out, "Total Análises: %d (Lab1) + %d (Lab2)\n", s.total_lab_tests_lab1,
+          s.total_lab_tests_lab2);
   fprintf(out, "Testes PREOP: %d\n\n", s.total_preop_tests);
 
   fprintf(out, "GLOBAIS\n");
@@ -80,8 +78,7 @@ void sigusr2_handler(int signum) {
   char filename[128];
   time_t now = time(NULL);
 
-  snprintf(filename, sizeof(filename), "results/stats_snapshots/stats_%ld.txt",
-           now);
+  snprintf(filename, sizeof(filename), "results/stats_snapshots/stats_%ld.txt", now);
 
   FILE *f = fopen(filename, "w");
   if (f) {

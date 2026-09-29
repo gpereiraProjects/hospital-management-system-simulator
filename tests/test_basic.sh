@@ -5,7 +5,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-BINARY="bin/hospital_system"
+BINARY="${BINARY:-build/release/bin/hospital_system}"
 PIPE="input_pipe"
 LOG="logs/hospital_log.txt"
 
@@ -15,8 +15,6 @@ echo -e "${GREEN}=== INICIANDO TESTE BÁSICO ===${NC}"
 rm -f $PIPE $LOG
 # Garante que as pastas existem para não dar erro
 mkdir -p results/lab_results results/pharmacy_deliveries results/stats_snapshots logs
-
-pkill -f hospital_system
 
 # 2. Arrancar
 ./$BINARY &

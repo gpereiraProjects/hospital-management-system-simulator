@@ -8,8 +8,7 @@
 typedef struct {
   // Sincronização da estrutura
   pthread_mutex_t mutex;
-  pthread_mutexattr_t
-      mutex_attr; // Para configurar mutex robusto/process-shared
+  pthread_mutexattr_t mutex_attr; // Para configurar mutex robusto/process-shared
 
   // --- Triagem ---
   int total_emergency_patients;

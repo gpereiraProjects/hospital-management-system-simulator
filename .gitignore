@@ -1,4 +1,7 @@
 # === Compilação C ===
+/build/
+/bin/
+/obj/
 *.o
 *.obj
 *.d
@@ -17,14 +20,11 @@ pharmacy_pipe
 lab_pipe
 
 # === Logs e Ficheiros de Execução ===
-logs/*.txt
+/logs/
 *.log
 
 # === Resultados Gerados ===
-# Ignora os txts gerados, mas mantém a estrutura de pastas
-results/lab_results/*.txt
-results/pharmacy_deliveries/*.txt
-results/stats_snapshots/*.txt
+/results/
 
 # === Valgrind e Debug ===
 valgrind_*.log
@@ -36,9 +36,8 @@ Thumbs.db
 .vscode/
 .idea/
 
-# === Diretórios temporários e builds futuros ===
-tmp/
-build/
+# === Diretórios temporários ===
+/tmp/
 
 # Relatório académico removido da edição de portefólio
 /REPORT.pdf

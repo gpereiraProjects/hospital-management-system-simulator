@@ -38,8 +38,7 @@ static void handle_shutdown(int s) {
 
 void generate_result(const char *pid, const char *type) {
   char path[256];
-  snprintf(path, sizeof(path), "results/lab_results/RESULT_%s_%ld.txt", pid,
-           time(NULL));
+  snprintf(path, sizeof(path), "results/lab_results/RESULT_%s_%ld.txt", pid, time(NULL));
   FILE *f = fopen(path, "w");
   if (f) {
     fprintf(f, "RELATORIO LAB: %s - %s\nVALIDADO\n", pid, type);

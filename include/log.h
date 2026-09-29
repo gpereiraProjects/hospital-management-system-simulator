@@ -37,10 +37,10 @@ typedef struct {
 void log_init(const char *filename);
 
 // Fecha o sistema de logs
-void log_close();
+void log_close(void);
 
 // Regista um evento (Thread-safe) [PDF Pag 23]
-void log_event(log_severity_t severity, const char *component,
-               const char *event_type, const char *details);
+void log_event(log_severity_t severity, const char *component, const char *event_type,
+               const char *details);
 
 #endif

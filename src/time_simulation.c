@@ -5,8 +5,7 @@
 #include <unistd.h>
 
 // Variável externa do config (carregada no main)
-extern system_config_t
-    config; // Assume-se que o processo tem acesso ao config global ou carregado
+extern system_config_t config; // Assume-se que o processo tem acesso ao config global ou carregado
 
 // Função para dormir N unidades de tempo
 void wait_time_units(int units) {

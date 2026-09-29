@@ -41,8 +41,7 @@ static volatile sig_atomic_t keep_running = 1;
 
 static int mq_urgent_id = -1;
 static int mq_resp_id = -1;
-static sem_t *sem_bo1 = NULL, *sem_bo2 = NULL, *sem_bo3 = NULL,
-             *sem_teams = NULL;
+static sem_t *sem_bo1 = NULL, *sem_bo2 = NULL, *sem_bo3 = NULL, *sem_teams = NULL;
 static pthread_t t_manager, t_resp; // Globais para cancel
 
 static void handle_shutdown(int s) {
@@ -64,12 +63,10 @@ int get_surgery_duration(const char *type) {
            rand() % (config.b03_max_duration - config.b03_min_duration + 1);
   return 50;
 }
-int get_cleanup_duration() {
-  return config.cleanup_min_time +
-         rand() % (config.cleanup_max_time - config.cleanup_min_time + 1);
+int get_cleanup_duration(void) {
+  return config.cleanup_min_time + rand() % (config.cleanup_max_time - config.cleanup_min_time + 1);
 }
-void send_request(int mq_id, int type, const char *target, const char *pid,
-                  const char *data) {
+void send_request(int mq_id, int type, const char *target, const char *pid, const char *data) {
   hospital_message_t msg;
   memset(&msg, 0, sizeof(msg));
   msg.msg_priority = type;
@@ -103,8 +100,7 @@ void *thread_response_monitor(void *arg) {
       continue;
     mutex_lock(&list_mutex, "RespMonitor");
     for (int i = 0; i < MAX_CONCURRENT_SURGERIES; i++) {
-      if (surgery_list[i].active &&
-          strcmp(surgery_list[i].patient_id, msg.patient_id) == 0) {
+      if (surgery_list[i].active && strcmp(surgery_list[i].patient_id, msg.patient_id) == 0) {
         mutex_lock(&surgery_list[i].mutex, "SurgeryUpdate");
         if (msg.msg_type == MSG_LAB_RESULTS_READY)
           surgery_list[i].lab_completed = 1;

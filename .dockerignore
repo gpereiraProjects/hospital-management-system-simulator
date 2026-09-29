@@ -1,0 +1,15 @@
+.git
+.github
+build
+bin
+obj
+logs
+results
+tmp
+input_pipe
+triage_pipe
+surgery_pipe
+pharmacy_pipe
+lab_pipe
+*.log
+REPORT.pdf

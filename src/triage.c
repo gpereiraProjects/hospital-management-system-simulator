@@ -41,7 +41,7 @@ static void handle_shutdown(int s) {
   pthread_cancel(t_man);
 }
 
-int get_next() {
+int get_next(void) {
   int best = -1;
   for (int i = 0; i < max_patients; i++) {
     if (patients[i].is_active == 1) {
@@ -50,12 +50,10 @@ int get_next() {
         continue;
       }
       int prio_i = (patients[i].type == 1) ? patients[i].triage_level : 10;
-      int prio_best =
-          (patients[best].type == 1) ? patients[best].triage_level : 10;
+      int prio_best = (patients[best].type == 1) ? patients[best].triage_level : 10;
       if (prio_i < prio_best)
         best = i;
-      else if (prio_i == prio_best &&
-               patients[i].arrival < patients[best].arrival)
+      else if (prio_i == prio_best && patients[i].arrival < patients[best].arrival)
         best = i;
     }
   }
@@ -75,9 +73,8 @@ void *doctor(void *arg) {
       printf("[TRIAGE] Medico %d atende %s\n", id, patients[idx].id);
       mutex_unlock(&list_mutex, "DocPick");
 
-      int duration = (patients[idx].type == 1)
-                         ? config.triage_emergency_duration
-                         : config.triage_appointment_duration;
+      int duration = (patients[idx].type == 1) ? config.triage_emergency_duration
+                                               : config.triage_appointment_duration;
       for (int k = 0; k < duration && keep_running; k++)
         usleep(1000 * config.time_unit_ms);
 
@@ -117,8 +114,7 @@ void *manager(void *arg) {
       // Se foi cancelada, morre aqui
       break;
     }
-    if (msg.msg_type != MSG_NEW_EMERGENCY &&
-        msg.msg_type != MSG_NEW_APPOINTMENT)
+    if (msg.msg_type != MSG_NEW_EMERGENCY && msg.msg_type != MSG_NEW_APPOINTMENT)
       continue;
 
     mutex_lock(&list_mutex, "Add");
@@ -131,8 +127,7 @@ void *manager(void *arg) {
     }
 
     if (slot != -1) {
-      snprintf(patients[slot].id, sizeof(patients[slot].id), "%s",
-               msg.patient_id);
+      snprintf(patients[slot].id, sizeof(patients[slot].id), "%s", msg.patient_id);
       if (msg.msg_type == MSG_NEW_EMERGENCY) {
         patients[slot].type = 1;
         int p = 3;

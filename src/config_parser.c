@@ -121,7 +121,6 @@ int load_config(const char *filename, system_config_t *config) {
   }
 
   fclose(f);
-  log_event(LOG_INFO, "CONFIG", "LOAD_SUCCESS",
-            "Configuracao carregada com sucesso");
+  log_event(LOG_INFO, "CONFIG", "LOAD_SUCCESS", "Configuracao carregada com sucesso");
   return 0;
 }

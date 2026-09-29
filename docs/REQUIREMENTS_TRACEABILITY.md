@@ -96,7 +96,7 @@ Status values:
 | TST-01 | All seven mandatory scenarios | Partial | Three scripts exist, but required scenarios and assertions are incomplete | Automated scenario suite |
 | TST-02 | Tests fail when expected behavior is absent | Missing | Scripts mostly sleep, signal, and print completion | Exit-code and assertion review |
 | TST-03 | Zero leaks, detected races, and deadlocks | Unverified | No reproducible reports correspond to the current source | Sanitizer and Valgrind jobs tied to a commit |
-| TST-04 | Reproducible clean-checkout build | Unverified | Existing binary predates source files; the audit WSL lacks a compiler | Clean GCC/Clang CI builds |
+| TST-04 | Reproducible clean-checkout build | Implemented | Release, debug, and sanitizer profiles build without warnings using GCC 15 and Clang 21 on Ubuntu/WSL; Dockerfile targets Ubuntu 24.04 | Preserve the matrix in continuous integration |
 
 ## Implementation order
 
