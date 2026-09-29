@@ -99,6 +99,14 @@ test_phase2: release test_parser
 test_phase3: release test_parser
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_phase3.sh
 
+test_sanitize: sanitize
+	BINARY=$(BUILD_ROOT)/sanitize/bin/$(PROJECT) bash ./tests/test_phase3.sh
+
+test_repository:
+	bash ./tests/test_repository.sh
+
+ci: format-check test_repository test test_sanitize check_runtime
+
 format:
 	clang-format -i $(SOURCES) include/*.h
 
@@ -130,6 +138,6 @@ ipc_clean:
 -include $(DEPENDENCIES)
 
 .PHONY: release debug sanitize build run test test_scenarios test_basic test_concurrent \
-	test_stress test_shutdown test_parser test_phase2 test_phase3 format format-check \
-	check_memory check_threads check_deadlock check_runtime \
+	test_stress test_shutdown test_parser test_phase2 test_phase3 test_sanitize test_repository \
+	format format-check check_memory check_threads check_deadlock check_runtime ci \
 	clean clean-runtime ipc_clean

@@ -109,6 +109,28 @@ loss of named-semaphore identity when a child reopens a semaphore inherited
 through `fork()`. Application stacks outside those narrow patterns remain
 visible and fail the target.
 
+Run the same aggregate publication gate used during local release preparation:
+
+```bash
+make ci
+```
+
+## Continuous integration
+
+`.github/workflows/ci.yml` separates independent evidence into jobs so a
+failure identifies its category:
+
+- formatting and repository publication hygiene;
+- GCC and Clang release/debug builds;
+- functional, concurrent, and 100-command stress tests;
+- AddressSanitizer and UndefinedBehaviorSanitizer;
+- Memcheck, Helgrind, and DRD;
+- the Ubuntu 24.04 container build.
+
+The workflow runs for pull requests, pushes to `main`, and manual dispatches.
+It has read-only repository permissions, cancels obsolete runs on the same ref,
+and applies a timeout to every job.
+
 ## Runtime artifacts
 
 The executable creates logs, results, IPC key material, and named pipes at

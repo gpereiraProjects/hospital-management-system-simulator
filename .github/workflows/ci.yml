@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Formatting and repository hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install formatting tools
+        run: sudo apt-get update && sudo apt-get install --yes clang-format
+      - name: Check formatting
+        run: make format-check
+      - name: Check publication hygiene
+        run: make test_repository
+
+  build:
+    name: ${{ matrix.compiler }} ${{ matrix.profile }} build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        profile: [release, debug]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make ${{ matrix.profile }} CC=${{ matrix.compiler }}
+
+  functional-tests:
+    name: Functional and stress tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run complete test suite
+        run: make test
+
+  sanitizers:
+    name: Address and undefined-behavior sanitizers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run sanitizer scenario
+        run: make test_sanitize
+
+  dynamic-analysis:
+    name: Memcheck, Helgrind, and DRD
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Valgrind
+        run: sudo apt-get update && sudo apt-get install --yes valgrind
+      - name: Analyze runtime workload
+        run: make check_runtime
+
+  container:
+    name: Container build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build reference image
+        run: docker build --tag hospital-system:ci .

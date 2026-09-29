@@ -30,6 +30,11 @@ The portfolio version will:
 4. Provide reproducible builds and continuous integration on Linux.
 5. Keep public documentation aligned with tested behavior.
 
+The build, test, continuous-integration, and documentation foundations for this
+scope are now present. Remaining engineering work is explicit in the partial
+requirements retained in the traceability table; publication still requires
+creating the new remote and observing its first successful CI run.
+
 ## Out of scope for version 1.0
 
 - A graphical user interface.

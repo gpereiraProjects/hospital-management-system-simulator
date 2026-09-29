@@ -1,16 +1,16 @@
 # Hospital Management System Simulator
 
 A Linux systems-programming project in C that models concurrent hospital
-services. It was created from an Operating Systems practical assignment and is
-currently being hardened into a reproducible portfolio project.
+services. It began as an Operating Systems practical assignment and has been
+rebuilt as a reproducible, assertion-tested portfolio project.
 
 The code explores process creation, POSIX threads, System V message queues and
 shared memory, POSIX semaphores, named pipes, signals, scheduling, and
 synchronization.
 
-> **Project status:** active modernization. The current source is an academic
-> prototype, not a production hospital system. Features are documented as
-> complete only after they have an automated verification.
+> **Scope:** this is an educational concurrency simulator, not software for
+> clinical use. Feature claims are tied to automated evidence in the
+> [requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md).
 
 ## Current architecture
 
@@ -32,6 +32,9 @@ the processed items; and surgery/triage wait for correlated dependencies. See
 [requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md) for the few
 remaining partial requirements and their verification targets.
 
+The full process, thread, ownership, and shutdown design is documented in the
+[architecture guide](docs/ARCHITECTURE.md).
+
 ## Requirements
 
 - Linux (Ubuntu 24.04 or a compatible distribution)
@@ -43,7 +46,26 @@ remaining partial requirements and their verification targets.
 Windows users should build through WSL 2 or Docker. Detailed setup is available
 in [the development guide](docs/DEVELOPMENT.md).
 
-## Build
+## Quick start
+
+Build and start the simulator:
+
+```bash
+make release
+./build/release/bin/hospital_system
+```
+
+In a second terminal, send the basic scenario:
+
+```bash
+cat tests/sample_commands/commands_basic.txt > input_pipe
+```
+
+Stop cleanly with `Ctrl+C`. Generated logs and result files are placed below
+`logs/` and `results/`. See the [command reference](docs/COMMANDS.md) for every
+accepted command and signal.
+
+## Build profiles
 
 Release build:
 
@@ -51,15 +73,10 @@ Release build:
 make release
 ```
 
-Debug build:
+Debug and sanitizer builds:
 
 ```bash
 make debug
-```
-
-AddressSanitizer and UndefinedBehaviorSanitizer build:
-
-```bash
 make sanitize
 ```
 
@@ -71,20 +88,6 @@ build/
 ├── debug/
 └── sanitize/
 ```
-
-Run the release build from the repository root:
-
-```bash
-make run
-```
-
-In another terminal, send a sample workload:
-
-```bash
-cat tests/sample_commands/commands_basic.txt > input_pipe
-```
-
-Stop the simulator with `Ctrl+C`.
 
 ## Docker build
 
@@ -111,7 +114,9 @@ make test_parser    # run the typed-command parser unit suite
 make test_phase2    # run parser, FIFO, signal, lock, and cleanup assertions
 make test_phase3    # run end-to-end clinical, stock, lab, and surgery workflows
 make test_scenarios # run basic, concurrent, 100-command, and shutdown scenarios
+make test_sanitize  # execute the main workflow under ASan and UBSan
 make check_runtime  # run Memcheck, Helgrind, and DRD on a real workload
+make ci             # run the complete local publication gate
 make clean          # remove build products only
 make clean-runtime  # remove this project's generated runtime files
 ```
@@ -127,11 +132,22 @@ stress scenario sends exactly 100 validated commands and proves that every
 request is accepted and completed. Dynamic-analysis targets exercise a real
 multi-component workload under Memcheck, Helgrind, and DRD.
 
+## Continuous integration
+
+The GitHub Actions workflow runs on every pull request and push to `main`. It
+checks formatting and repository hygiene, builds release/debug profiles with
+GCC and Clang, runs the complete functional and stress suite, executes ASan and
+UBSan, performs the three Valgrind analyses, and builds the Ubuntu 24.04
+container image.
+
 ## Documentation
 
+- [Architecture](docs/ARCHITECTURE.md)
+- [Command reference](docs/COMMANDS.md)
 - [Portfolio scope](docs/PROJECT_SCOPE.md)
 - [Requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md)
 - [Development environment](docs/DEVELOPMENT.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## Author
 

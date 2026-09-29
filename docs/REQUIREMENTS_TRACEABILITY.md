@@ -94,12 +94,12 @@ Status values:
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
 | TST-01 | All seven mandatory scenarios | Implemented | Parser, safety, stock depletion/restock, transfer, priorities, dependencies, outputs, concurrency, exact statistics, shutdown under load, and a deterministic 100-command workload are asserted | Preserve in CI |
-| TST-02 | Tests fail when expected behavior is absent | Implemented | Parser, Phase 2, and Phase 3 suites use bounded waits and content/state assertions | Preserve in CI |
-| TST-03 | Zero leaks, detected races, and deadlocks | Implemented | Sanitizers pass; `test_instrumented.sh` runs a real workload under Memcheck, Helgrind, and DRD. Signal state is C11-atomic. Narrow suppressions document glibc TLS and DRD post-fork named-semaphore modelling limitations | Preserve all analyzers in CI |
-| TST-04 | Reproducible clean-checkout build | Implemented | Release, debug, and sanitizer profiles build without warnings using GCC 15 and Clang 21 on Ubuntu/WSL; Dockerfile targets Ubuntu 24.04 | Preserve the matrix in continuous integration |
+| TST-02 | Tests fail when expected behavior is absent | Implemented | Parser, Phase 2, Phase 3, and scenario suites use bounded waits and content/state assertions | `.github/workflows/ci.yml` runs the suite for pushes and pull requests |
+| TST-03 | Zero leaks, detected races, and deadlocks | Implemented | Sanitizers pass; `test_instrumented.sh` runs a real workload under Memcheck, Helgrind, and DRD. Signal state is C11-atomic. Narrow suppressions document glibc TLS and DRD post-fork named-semaphore modelling limitations | Dedicated sanitizer and dynamic-analysis CI jobs |
+| TST-04 | Reproducible clean-checkout build | Implemented | GCC/Clang release and debug builds, sanitizer execution, repository hygiene, and the Ubuntu 24.04 Docker build are defined as independent CI jobs | Preserve the matrix in `.github/workflows/ci.yml` |
 
 ## Remaining implementation order
 
 1. Complete utilization/throughput statistics and define drain-versus-cancel shutdown semantics.
-2. Add the existing functional and dynamic-analysis targets to continuous integration.
-3. Finish public architecture documentation and prepare the first release.
+2. Resolve the remaining unchecked return values using a fault-injection plan.
+3. Prepare the version number, release notes, remote repository, and first public release.
