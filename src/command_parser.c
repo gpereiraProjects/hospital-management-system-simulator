@@ -165,6 +165,19 @@ static int valid_medication(const char *name) {
                        sizeof(valid_medications) / sizeof(valid_medications[0]));
 }
 
+static const char *canonical_medication(const char *name) {
+  static const struct {
+    const char *alias;
+    const char *canonical;
+  } aliases[] = {{"ANALG_A", "ANALGESICO_A"},     {"ANTIB_B", "ANTIBIOTICO_B"},
+                 {"ANEST_C", "ANESTESICO_C"},     {"CARDIOV_F", "CARDIOVASCULAR_F"},
+                 {"NEUROLOG_G", "NEUROLOGICO_G"}, {"ORTOPED_H", "ORTOPEDICO_H"}};
+  for (size_t i = 0; i < sizeof(aliases) / sizeof(aliases[0]); i++)
+    if (strcmp(name, aliases[i].alias) == 0)
+      return aliases[i].canonical;
+  return name;
+}
+
 static int parse_medications(const char *line, const char *field, int quantities_required,
                              command_t *command, char *error, size_t error_size) {
   char contents[256];
@@ -211,7 +224,7 @@ static int parse_medications(const char *line, const char *field, int quantities
     }
 
     medication_request_t *request = &command->medications[command->medication_count++];
-    snprintf(request->name, sizeof(request->name), "%s", item);
+    snprintf(request->name, sizeof(request->name), "%s", canonical_medication(item));
     request->quantity = quantity;
   }
   return 0;
@@ -297,7 +310,8 @@ command_parse_result_t command_parse(const char *line, command_t *command, char 
       set_error(error, error_size, "unknown medication '%s'", id);
       return COMMAND_PARSE_ERROR;
     }
-    snprintf(command->restock_medication, sizeof(command->restock_medication), "%s", id);
+    snprintf(command->restock_medication, sizeof(command->restock_medication), "%s",
+             canonical_medication(id));
     if (parse_integer_field(line, "quantity:", &command->restock_quantity) != 0 ||
         command->restock_quantity <= 0) {
       set_error(error, error_size, "RESTOCK requires a positive quantity");
@@ -415,6 +429,19 @@ command_parse_result_t command_parse(const char *line, command_t *command, char 
     if (parse_tests(line, command, error, error_size) != 0 || command->test_count == 0) {
       set_error(error, error_size, "laboratory request requires at least one test");
       return COMMAND_PARSE_ERROR;
+    }
+    for (size_t i = 0; i < command->test_count; i++) {
+      int lab1_test =
+          strcmp(command->tests[i], "HEMO") == 0 || strcmp(command->tests[i], "GLIC") == 0;
+      int lab2_test = strcmp(command->tests[i], "COLEST") == 0 ||
+                      strcmp(command->tests[i], "RENAL") == 0 ||
+                      strcmp(command->tests[i], "HEPAT") == 0;
+      if ((strcmp(command->lab, "LAB1") == 0 && !lab1_test) ||
+          (strcmp(command->lab, "LAB2") == 0 && !lab2_test)) {
+        set_error(error, error_size, "test '%s' is incompatible with %s", command->tests[i],
+                  command->lab);
+        return COMMAND_PARSE_ERROR;
+      }
     }
   } else {
     set_error(error, error_size, "unknown command '%s'", kind);

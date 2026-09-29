@@ -2,9 +2,9 @@
 
 # -- Teste de Prioridade na Triagem --
 # Paciente pouco urgente chega primeiro
-EMERGENCY PAC_CPX_01 init: 0 triage: 4 stability: 90 tests: [] meds: [ANALGESICO_A]
+EMERGENCY PAC_CPX_01 init: 0 triage: 4 stability: 190 tests: [] meds: [ANALGESICO_A]
 # Paciente muito urgente chega depois (deve ser atendido antes do 01 se houver fila)
-EMERGENCY PAC_CPX_02 init: 0 triage: 1 stability: 30 tests: [HEMO] meds: [ADRENALINA]
+EMERGENCY PAC_CPX_02 init: 0 triage: 1 stability: 100 tests: [HEMO] meds: [ANTIBIOTICO_B]
 # Consulta normal
 APPOINTMENT PAC_CPX_03 init: 0 scheduled: 50 doctor: NEURO tests: []
 

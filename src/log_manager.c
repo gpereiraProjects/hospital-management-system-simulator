@@ -1,100 +1,121 @@
 #include "../include/log.h"
-#include <pthread.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
-// Variáveis Estáticas (Internas ao módulo)
-static FILE *log_file = NULL;
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+static int log_fd = -1;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int debug_mode = 0; // Pode ser ativado via flag de compilação ou config
+static critical_log_shm_t *critical_buffer;
+static int debug_mode;
+
+static const char *severity_name(log_severity_t severity) {
+  switch (severity) {
+  case LOG_CRITICAL:
+    return "CRITICAL";
+  case LOG_ERROR:
+    return "ERROR";
+  case LOG_WARNING:
+    return "WARNING";
+  case LOG_INFO:
+    return "INFO";
+  case LOG_DEBUG:
+    return "DEBUG";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+static int write_all(int descriptor, const char *text, size_t length) {
+  while (length > 0) {
+    ssize_t written = write(descriptor, text, length);
+    if (written == -1 && errno == EINTR)
+      continue;
+    if (written <= 0)
+      return -1;
+    text += written;
+    length -= (size_t)written;
+  }
+  return 0;
+}
 
 void log_init(const char *filename) {
   pthread_mutex_lock(&log_mutex);
-
-  log_file = fopen(filename, "a");
-  if (!log_file) {
-    perror("ERRO CRÍTICO: Não foi possível criar/abrir ficheiro de log");
-    // Em caso de falha de log, o sistema deve alertar stderr
+  log_fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0600);
+  if (log_fd == -1) {
+    perror("Nao foi possivel abrir o ficheiro de log");
   } else {
-    // Cabeçalho de sessão
+    char line[128];
     time_t now = time(NULL);
-    char *date = ctime(&now);
-    date[strlen(date) - 1] = '\0'; // Remove newline
-    fprintf(log_file, "--- SESSÃO INICIADA: %s ---\n", date);
-    fflush(log_file);
+    struct tm local;
+    localtime_r(&now, &local);
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &local);
+    int length = snprintf(line, sizeof(line), "--- SESSAO INICIADA: %s ---\n", timestamp);
+    if (length > 0)
+      write_all(log_fd, line, (size_t)length);
   }
-
 #ifdef DEBUG
   debug_mode = 1;
 #endif
-
   pthread_mutex_unlock(&log_mutex);
 }
+
+void log_bind_critical_buffer(critical_log_shm_t *buffer) { critical_buffer = buffer; }
 
 void log_close(void) {
   pthread_mutex_lock(&log_mutex);
-  if (log_file) {
-    fprintf(log_file, "--- SESSÃO TERMINADA ---\n");
-    fclose(log_file);
-    log_file = NULL;
+  if (log_fd != -1) {
+    static const char closing[] = "--- SESSAO TERMINADA ---\n";
+    write_all(log_fd, closing, sizeof(closing) - 1);
+    close(log_fd);
+    log_fd = -1;
   }
   pthread_mutex_unlock(&log_mutex);
 }
 
-// Implementação conforme especificação PDF Pag 23
+static void store_critical_event(log_severity_t severity, const char *component,
+                                 const char *event_type, const char *details, time_t now) {
+  if (critical_buffer == NULL || severity > LOG_WARNING)
+    return;
+  pthread_mutex_lock(&critical_buffer->mutex);
+  int index = critical_buffer->current_index;
+  critical_event_t *event = &critical_buffer->events[index];
+  event->timestamp = now;
+  event->severity = severity;
+  snprintf(event->component, sizeof(event->component), "%s", component);
+  snprintf(event->event_type, sizeof(event->event_type), "%s", event_type);
+  snprintf(event->description, sizeof(event->description), "%s", details);
+  critical_buffer->current_index = (index + 1) % MAX_LOG_EVENTS;
+  if (critical_buffer->event_count < MAX_LOG_EVENTS)
+    critical_buffer->event_count++;
+  pthread_mutex_unlock(&critical_buffer->mutex);
+}
+
 void log_event(log_severity_t severity, const char *component, const char *event_type,
                const char *details) {
-
-  // Se não estiver inicializado ou for DEBUG e debug_mode off, ignora
-  if (!log_file || (severity == LOG_DEBUG && !debug_mode))
+  if (log_fd == -1 || (severity == LOG_DEBUG && !debug_mode))
     return;
 
-  // Obter Timestamp
   time_t now = time(NULL);
-  struct tm *t = localtime(&now);
-  char time_str[20];
-  strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", t);
+  struct tm local;
+  localtime_r(&now, &local);
+  char timestamp[32];
+  strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &local);
 
-  // Converter Enum para String
-  const char *sev_str;
-  switch (severity) {
-  case LOG_CRITICAL:
-    sev_str = "CRITICAL";
-    break;
-  case LOG_ERROR:
-    sev_str = "ERROR";
-    break;
-  case LOG_WARNING:
-    sev_str = "WARNING";
-    break;
-  case LOG_INFO:
-    sev_str = "INFO";
-    break;
-  case LOG_DEBUG:
-    sev_str = "DEBUG";
-    break;
-  default:
-    sev_str = "UNKNOWN";
-    break;
-  }
+  char line[768];
+  int length = snprintf(line, sizeof(line), "[%s] [%s] [%s] [%s] %s\n", timestamp, component,
+                        severity_name(severity), event_type, details);
+  if (length < 0)
+    return;
+  size_t output_length = (size_t)length < sizeof(line) ? (size_t)length : sizeof(line) - 1;
 
-  // --- SECÇÃO CRÍTICA (Escrita no Ficheiro) ---
   pthread_mutex_lock(&log_mutex);
-
-  // Formato: [TIMESTAMP] [COMPONENT] [SEVERITY] [EVENT_TYPE] [DETAILS]
-  fprintf(log_file, "[%s] [%s] [%s] [%s] %s\n", time_str, component, sev_str, event_type, details);
-
-  // Forçar escrita no disco imediatamente (importante para debugging de
-  // crashes)
-  fflush(log_file);
-
-  // Imprimir erros graves também na consola
-  if (severity <= LOG_ERROR) {
-    fprintf(stderr, "[%s] [%s] %s: %s\n", component, sev_str, event_type, details);
-  }
-
+  write_all(log_fd, line, output_length);
+  if (severity <= LOG_ERROR)
+    write_all(STDERR_FILENO, line, output_length);
   pthread_mutex_unlock(&log_mutex);
+  store_critical_event(severity, component, event_type, details, now);
 }

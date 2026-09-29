@@ -36,6 +36,12 @@ make clean
 make release CC=clang
 ```
 
+Named pipes are not supported by every Windows-mounted filesystem in WSL. If
+`mkfifo` reports `Operation not supported`, clone/copy the repository into the
+native WSL filesystem (for example below `/home`) or run it through Docker. The
+automated integration tests stage the executable in a native Linux temporary
+directory for this reason.
+
 ## Docker
 
 Docker provides a disposable Ubuntu 24.04 environment containing GCC, Clang,
@@ -74,9 +80,8 @@ make format
 make format-check
 ```
 
-Formatting the entire existing codebase is deferred until the implementation
-work begins so that functional changes are not hidden inside a large baseline
-formatting diff.
+All C sources and headers are kept formatted; `make format-check` is part of the
+pre-publication validation.
 
 ## Runtime artifacts
 

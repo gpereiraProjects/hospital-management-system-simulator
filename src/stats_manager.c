@@ -43,7 +43,12 @@ void print_stats(FILE *out) {
   fprintf(out, "CENTRO DE TRIAGEM\n");
   fprintf(out, "Total Emergências: %d\n", s.total_emergency_patients);
   fprintf(out, "Total Consultas: %d\n", s.total_appointments);
-  fprintf(out, "Tempo Médio Espera (Emerg.): %.2f ut\n", s.total_emergency_wait_time);
+  double emergency_average =
+      s.completed_emergencies > 0 ? s.total_emergency_wait_time / s.completed_emergencies : 0.0;
+  double appointment_average =
+      s.completed_appointments > 0 ? s.total_appointment_wait_time / s.completed_appointments : 0.0;
+  fprintf(out, "Tempo Médio Espera (Emerg.): %.2f ut\n", emergency_average);
+  fprintf(out, "Tempo Médio Espera (Consultas): %.2f ut\n", appointment_average);
   fprintf(out, "Pacientes Transferidos: %d\n", s.critical_transfers);
   fprintf(out, "Pacientes Rejeitados: %d\n\n", s.rejected_patients);
 
@@ -65,6 +70,64 @@ void print_stats(FILE *out) {
   fprintf(out, "GLOBAIS\n");
   fprintf(out, "Erros Sistema: %d\n", s.system_errors);
   fprintf(out, "==================================\n");
+}
+
+static void print_triage_status(FILE *out) {
+  global_statistics_t snapshot;
+  pthread_mutex_lock(&ptr_stats->mutex);
+  snapshot = *ptr_stats;
+  pthread_mutex_unlock(&ptr_stats->mutex);
+  fprintf(out, "TRIAGE emergencies=%d appointments=%d completed=%d rejected=%d transferred=%d\n",
+          snapshot.total_emergency_patients, snapshot.total_appointments,
+          snapshot.completed_emergencies + snapshot.completed_appointments,
+          snapshot.rejected_patients, snapshot.critical_transfers);
+}
+
+static void print_surgery_status(FILE *out) {
+  for (int i = 0; i < MAX_ROOMS; i++) {
+    pthread_mutex_lock(&ptr_bo->rooms[i].mutex);
+    fprintf(out, "SURGERY room=%d status=%d patient=%s\n", ptr_bo->rooms[i].room_id,
+            ptr_bo->rooms[i].status,
+            ptr_bo->rooms[i].current_patient[0] ? ptr_bo->rooms[i].current_patient : "-");
+    pthread_mutex_unlock(&ptr_bo->rooms[i].mutex);
+  }
+}
+
+static void print_pharmacy_status(FILE *out) {
+  for (int i = 0; i < MAX_MED_TYPES; i++) {
+    medication_stock_t *medication = &ptr_pharm->medications[i];
+    pthread_mutex_lock(&medication->mutex);
+    fprintf(out, "PHARMACY medication=%s stock=%d reserved=%d threshold=%d\n", medication->name,
+            medication->current_stock, medication->reserved, medication->threshold);
+    pthread_mutex_unlock(&medication->mutex);
+  }
+}
+
+static void print_lab_status(FILE *out) {
+  pthread_mutex_lock(&ptr_lab->lab1_mutex);
+  fprintf(out, "LAB lab=LAB1 queued=%d available=%d\n", ptr_lab->lab1_count,
+          ptr_lab->lab1_available_slots);
+  pthread_mutex_unlock(&ptr_lab->lab1_mutex);
+  pthread_mutex_lock(&ptr_lab->lab2_mutex);
+  fprintf(out, "LAB lab=LAB2 queued=%d available=%d\n", ptr_lab->lab2_count,
+          ptr_lab->lab2_available_slots);
+  pthread_mutex_unlock(&ptr_lab->lab2_mutex);
+}
+
+void print_component_status(FILE *out, const char *component) {
+  if (ptr_stats == NULL || ptr_bo == NULL || ptr_pharm == NULL || ptr_lab == NULL) {
+    fprintf(out, "Estado indisponivel.\n");
+    return;
+  }
+  if (strcmp(component, "ALL") == 0 || strcmp(component, "TRIAGE") == 0)
+    print_triage_status(out);
+  if (strcmp(component, "ALL") == 0 || strcmp(component, "SURGERY") == 0)
+    print_surgery_status(out);
+  if (strcmp(component, "ALL") == 0 || strcmp(component, "PHARMACY") == 0)
+    print_pharmacy_status(out);
+  if (strcmp(component, "ALL") == 0 || strcmp(component, "LAB") == 0)
+    print_lab_status(out);
+  fflush(out);
 }
 
 int save_stats_snapshot(char *path, size_t path_size) {

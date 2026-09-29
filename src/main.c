@@ -30,7 +30,7 @@ extern int surgery_main(int argc, char *argv[]);
 extern int pharmacy_main(int argc, char *argv[]);
 extern int laboratory_main(int argc, char *argv[]);
 
-static volatile sig_atomic_t shutdown_requested;
+volatile sig_atomic_t shutdown_requested;
 static volatile sig_atomic_t stats_requested;
 static volatile sig_atomic_t snapshot_requested;
 static volatile sig_atomic_t child_changed;
@@ -57,6 +57,21 @@ static lab_queue_shm_t *lab_ptr;
 static critical_log_shm_t *critical_log_ptr;
 static int instance_lock_fd = -1;
 static sem_t *created_semaphores[7];
+static pthread_t clock_thread;
+static int clock_started;
+
+static void *simulation_clock(void *argument) {
+  (void)argument;
+  while (!shutdown_requested) {
+    usleep((useconds_t)config.time_unit_ms * 1000U);
+    if (shutdown_requested)
+      break;
+    pthread_mutex_lock(&g_stats_ptr->mutex);
+    g_stats_ptr->simulation_time_units++;
+    pthread_mutex_unlock(&g_stats_ptr->mutex);
+  }
+  return NULL;
+}
 
 static void signal_handler(int signal_number) {
   if (signal_number == SIGUSR1)
@@ -159,6 +174,7 @@ static int initialize_shared_memory(void) {
   g_stats_ptr->system_start_time = time(NULL);
   pthread_mutexattr_destroy(&attributes);
   stats_init_pointers(g_stats_ptr, bo_ptr, pharmacy_ptr, lab_ptr);
+  log_bind_critical_buffer(critical_log_ptr);
   return 0;
 }
 
@@ -211,6 +227,7 @@ static int create_ipc_resources(void) {
 }
 
 static void detach_shared_memory(void) {
+  log_bind_critical_buffer(NULL);
   if (g_stats_ptr != NULL && g_stats_ptr != (void *)-1)
     shmdt(g_stats_ptr);
   if (bo_ptr != NULL && bo_ptr != (void *)-1)
@@ -279,12 +296,17 @@ static void wait_for_child(pid_t child) {
 static void graceful_shutdown(void) {
   log_event(LOG_INFO, "SYSTEM", "SHUTDOWN", "A iniciar encerramento gracioso");
   wait_for_patient_threads();
+  if (clock_started)
+    pthread_join(clock_thread, NULL);
   request_children_to_stop();
   remove_message_queues();
   wait_for_child(pid_triage);
   wait_for_child(pid_surgery);
   wait_for_child(pid_pharmacy);
   wait_for_child(pid_laboratory);
+  char final_snapshot[128];
+  if (save_stats_snapshot(final_snapshot, sizeof(final_snapshot)) == 0)
+    log_event(LOG_INFO, "STATS", "FINAL_SNAPSHOT", final_snapshot);
   cleanup_resources();
   log_event(LOG_INFO, "SYSTEM", "STOPPED", "Sistema encerrado com sucesso");
   log_close();
@@ -308,7 +330,7 @@ static void process_command_line(char *line) {
 
   log_event(LOG_INFO, "INPUT", "CMD_ACCEPT", command_kind_name(command.kind));
   if (command.kind == COMMAND_STATUS) {
-    print_stats(stdout);
+    print_component_status(stdout, command.status_component);
     return;
   }
   if (start_patient_thread(&command) != 0)
@@ -424,6 +446,15 @@ int main(int argc, char *argv[]) {
   if (pid_triage < 0 || pid_surgery < 0 || pid_pharmacy < 0 || pid_laboratory < 0) {
     perror("fork");
     shutdown_requested = 1;
+  }
+
+  int clock_error = pthread_create(&clock_thread, NULL, simulation_clock, NULL);
+  if (clock_error != 0) {
+    errno = clock_error;
+    log_event(LOG_ERROR, "SYSTEM", "CLOCK_CREATE_FAIL", strerror(errno));
+    shutdown_requested = 1;
+  } else {
+    clock_started = 1;
   }
 
   int input_fd = open(PIPE_INPUT, O_RDWR | O_NONBLOCK);

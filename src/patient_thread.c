@@ -1,11 +1,14 @@
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/msg.h>
 #include <time.h>
+#include <unistd.h>
 
+#include "../include/config.h"
 #include "../include/ipc.h"
 #include "../include/log.h"
 #include "../include/patient_thread.h"
@@ -14,6 +17,8 @@
 extern int mq_urgent_id;
 extern int mq_normal_id;
 extern global_statistics_t *g_stats_ptr;
+extern volatile sig_atomic_t shutdown_requested;
+extern system_config_t config;
 
 static pthread_mutex_t lifecycle_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t lifecycle_cond = PTHREAD_COND_INITIALIZER;
@@ -32,6 +37,7 @@ static void prepare_message(const command_t *command, hospital_message_t *messag
   snprintf(message->source, sizeof(message->source), "MAIN");
   snprintf(message->patient_id, sizeof(message->patient_id), "%s", command->id);
   snprintf(message->data, sizeof(message->data), "%s", command->raw);
+  message->command = *command;
   message->timestamp = time(NULL);
 
   switch (command->kind) {
@@ -66,17 +72,42 @@ static void prepare_message(const command_t *command, hospital_message_t *messag
     break;
   }
   message->msg_priority = message->msg_type;
+  if (command->kind == COMMAND_PHARMACY_REQUEST) {
+    if (command->priority == COMMAND_PRIORITY_URGENT)
+      message->msg_priority = PHARMACY_URGENT;
+    else if (command->priority == COMMAND_PRIORITY_HIGH)
+      message->msg_priority = PHARMACY_HIGH;
+    else
+      message->msg_priority = PHARMACY_NORMAL;
+  }
 }
 
 static void *patient_lifecycle_thread(void *argument) {
   command_t *command = argument;
+  while (!shutdown_requested && command->init_time >= 0) {
+    int current_time = 0;
+    if (g_stats_ptr != NULL) {
+      pthread_mutex_lock(&g_stats_ptr->mutex);
+      current_time = g_stats_ptr->simulation_time_units;
+      pthread_mutex_unlock(&g_stats_ptr->mutex);
+    }
+    if (current_time >= command->init_time)
+      break;
+    usleep((useconds_t)config.time_unit_ms * 1000U);
+  }
+  if (shutdown_requested) {
+    free(command);
+    thread_finished();
+    return NULL;
+  }
+
   hospital_message_t message;
   prepare_message(command, &message);
 
   int urgent =
       command->kind == COMMAND_SURGERY ||
-      ((command->kind == COMMAND_PHARMACY_REQUEST || command->kind == COMMAND_LAB_REQUEST) &&
-       command->priority == COMMAND_PRIORITY_URGENT);
+      (command->kind == COMMAND_LAB_REQUEST && command->priority == COMMAND_PRIORITY_URGENT) ||
+      (command->kind == COMMAND_PHARMACY_REQUEST && command->priority >= COMMAND_PRIORITY_HIGH);
   int destination = urgent ? mq_urgent_id : mq_normal_id;
   size_t size = sizeof(message) - sizeof(message.msg_priority);
 

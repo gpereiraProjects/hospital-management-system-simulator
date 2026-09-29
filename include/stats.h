@@ -59,6 +59,7 @@ typedef struct {
 void stats_init_pointers(global_statistics_t *s, surgery_block_shm_t *b, pharmacy_shm_t *p,
                          lab_queue_shm_t *l);
 void print_stats(FILE *out);
+void print_component_status(FILE *out, const char *component);
 int save_stats_snapshot(char *path, size_t path_size);
 
 #endif

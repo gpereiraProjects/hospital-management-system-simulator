@@ -21,10 +21,10 @@ PHARMACY_REQUEST REQ_STR_04 init: 0 priority: NORMAL items: [ANALGESICO_A:1]
 PHARMACY_REQUEST REQ_STR_05 init: 0 priority: NORMAL items: [ANALGESICO_A:1]
 
 # Lote 3: Cirurgias em Fila (Vai exceder as equipas médicas disponíveis)
-SURGERY PAC_STR_11 init: 0 type: CARDIO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
-SURGERY PAC_STR_12 init: 0 type: ORTHO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
-SURGERY PAC_STR_13 init: 0 type: NEURO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
-SURGERY PAC_STR_14 init: 0 type: CARDIO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
-SURGERY PAC_STR_15 init: 0 type: ORTHO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
+SURGERY PAC_STR_11 init: 0 type: CARDIO scheduled: 1 urgency: LOW tests: [PREOP] meds: [ANEST_C]
+SURGERY PAC_STR_12 init: 0 type: ORTHO scheduled: 1 urgency: LOW tests: [PREOP] meds: [ANEST_C]
+SURGERY PAC_STR_13 init: 0 type: NEURO scheduled: 1 urgency: LOW tests: [PREOP] meds: [ANEST_C]
+SURGERY PAC_STR_14 init: 0 type: CARDIO scheduled: 1 urgency: LOW tests: [PREOP] meds: [ANEST_C]
+SURGERY PAC_STR_15 init: 0 type: ORTHO scheduled: 1 urgency: LOW tests: [PREOP] meds: [ANEST_C]
 
 STATUS ALL

@@ -1,6 +1,8 @@
 #ifndef IPC_H
 #define IPC_H
 
+#include "command.h"
+
 #include <semaphore.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
@@ -32,6 +34,7 @@ typedef struct {
   int operation_id;
   time_t timestamp;
   char data[1024];
+  command_t command;
 } hospital_message_t;
 
 // Tipos de Mensagem
@@ -46,6 +49,15 @@ typedef struct {
 #define MSG_TRANSFER_PATIENT 9
 #define MSG_REJECT_PATIENT 10
 #define MSG_RESTOCK 11
+
+// Tipos de entrega exclusivos na fila de respostas. Impedem que um
+// componente consuma acidentalmente a resposta destinada a outro.
+#define RESPONSE_SURGERY 101L
+#define RESPONSE_TRIAGE 102L
+#define RESPONSE_MAIN 103L
+#define PHARMACY_URGENT 201L
+#define PHARMACY_HIGH 202L
+#define PHARMACY_NORMAL 203L
 
 // --- Named Pipes ---
 #define PIPE_INPUT "input_pipe"

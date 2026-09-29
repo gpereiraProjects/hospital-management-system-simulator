@@ -46,7 +46,17 @@ int main(void) {
   expect_invalid("SURGERY PAT007 init:1 type:CARDIO scheduled:4 urgency:HIGH "
                  "tests:[HEMO] meds:[ANEST_C]");
   expect_invalid("LAB_REQUEST PAT008 init:1 priority:HIGH lab:LAB1 tests:[HEMO]");
+  expect_invalid("LAB_REQUEST PAT008 init:1 priority:NORMAL lab:LAB1 tests:[RENAL]");
   expect_invalid("UNKNOWN PAT009 init:0");
+
+  command_t canonical;
+  char error[160] = "";
+  if (command_parse("PHARMACY_REQUEST PAT010 init:0 priority:HIGH items:[ANALG_A:2]",
+                    &canonical, error, sizeof(error)) != COMMAND_PARSE_OK ||
+      strcmp(canonical.medications[0].name, "ANALGESICO_A") != 0) {
+    fprintf(stderr, "Medication aliases were not canonicalized: %s\n", error);
+    failures++;
+  }
 
   if (failures != 0)
     return EXIT_FAILURE;

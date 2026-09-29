@@ -71,7 +71,7 @@ $(BIN_DIR):
 run: release
 	./$(BUILD_ROOT)/release/bin/$(PROJECT)
 
-test: test_phase2
+test: test_phase2 test_phase3
 
 test_legacy: release
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_basic.sh
@@ -95,6 +95,9 @@ test_parser:
 
 test_phase2: release test_parser
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_phase2.sh
+
+test_phase3: release test_parser
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_phase3.sh
 
 format:
 	clang-format -i $(SOURCES) include/*.h
@@ -125,5 +128,5 @@ ipc_clean:
 -include $(DEPENDENCIES)
 
 .PHONY: release debug sanitize build run test test_basic test_concurrent \
-	test_stress test_legacy test_parser test_phase2 format format-check check_memory check_threads check_deadlock \
+	test_stress test_legacy test_parser test_phase2 test_phase3 format format-check check_memory check_threads check_deadlock \
 	clean clean-runtime ipc_clean

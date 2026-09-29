@@ -25,11 +25,12 @@ Requests enter through `input_pipe` and are routed through System V message
 queues. Shared memory stores global statistics and the structures intended for
 room, pharmacy, laboratory, and critical-log state.
 
-The implementation already demonstrates the process hierarchy, message queues,
-shared statistics, resource semaphores, triage workers, and conditional waiting
-for surgery dependencies. Several assignment requirements remain partial or
-missing; see [requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md) for
-the audited status and verification target of each requirement.
+The simulator now executes end-to-end triage, surgery, pharmacy, and laboratory
+flows. Requests retain their validated typed fields across IPC; stock and
+restocking are shared and synchronized; laboratory and pharmacy outputs contain
+the processed items; and surgery/triage wait for correlated dependencies. See
+[requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md) for the few
+remaining partial requirements and their verification targets.
 
 ## Requirements
 
@@ -108,6 +109,7 @@ make format-check   # verify formatting without modifying files
 make test           # run the reliable automated suite
 make test_parser    # run the typed-command parser unit suite
 make test_phase2    # run parser, FIFO, signal, lock, and cleanup assertions
+make test_phase3    # run end-to-end clinical, stock, lab, and surgery workflows
 make clean          # remove build products only
 make clean-runtime  # remove this project's generated runtime files
 ```
@@ -116,9 +118,10 @@ Runtime cleanup is instance-specific and only resolves this application's known
 keys and names. The old standalone broad cleanup command remains disabled so it
 can never remove `/dev/shm` or System V resources belonging to other programs.
 
-The parser and Phase 2 integration suites are assertion-based. The three older,
-long-running scenarios are retained as a behavioral baseline while they are
-converted into bounded automated tests; progress is tracked in the
+The parser, runtime-safety, and functional integration suites are
+assertion-based. The three older, long-running scenarios are retained as a
+behavioral baseline while the remaining stress coverage is converted into a
+bounded automated test; progress is tracked in the
 [requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md).
 
 ## Documentation

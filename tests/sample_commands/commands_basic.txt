@@ -1,6 +1,6 @@
 # === CENÁRIO BÁSICO ===
 # 1. Uma emergência grave (Triage Nível 1 - Vermelho)
-EMERGENCY PAC_BAS_01 init: 0 triage: 1 stability: 40 tests: [HEMO] meds: [ANALGESICO_A]
+EMERGENCY PAC_BAS_01 init: 0 triage: 1 stability: 100 tests: [HEMO] meds: [ANALGESICO_A]
 
 # 2. Uma consulta agendada de rotina
 APPOINTMENT PAC_BAS_02 init: 5 scheduled: 100 doctor: CARDIO tests: []

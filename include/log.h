@@ -35,6 +35,7 @@ typedef struct {
 // --- Protótipos ---
 // Inicializa o sistema de logs (abre ficheiro, liga mutexes)
 void log_init(const char *filename);
+void log_bind_critical_buffer(critical_log_shm_t *buffer);
 
 // Fecha o sistema de logs
 void log_close(void);

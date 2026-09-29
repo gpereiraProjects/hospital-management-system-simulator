@@ -22,18 +22,24 @@
 typedef struct {
   int operation_id;
   char patient_id[MAX_PATIENT_ID];
-  char type[10];
+  char type[MAX_COMPONENT_NAME];
   int room_index;
   int lab_completed;
   int meds_completed;
+  command_t command;
+  pthread_t thread;
+  int thread_started;
+  int ready;
   pthread_cond_t cond;
   pthread_mutex_t mutex;
   int active;
 } active_surgery_t;
 
-#define MAX_CONCURRENT_SURGERIES 10
+#define MAX_CONCURRENT_SURGERIES 64
 static active_surgery_t surgery_list[MAX_CONCURRENT_SURGERIES];
 static pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t schedule_condition = PTHREAD_COND_INITIALIZER;
+static int occupied_rooms[MAX_ROOMS];
 static system_config_t config;
 static global_statistics_t *g_stats = NULL;
 static surgery_block_shm_t *g_shm_bo = NULL;
@@ -43,6 +49,72 @@ static int mq_urgent_id = -1;
 static int mq_resp_id = -1;
 static sem_t *sem_bo1 = NULL, *sem_bo2 = NULL, *sem_bo3 = NULL, *sem_teams = NULL;
 static pthread_t t_manager, t_resp;
+
+static int wait_for_semaphore(sem_t *semaphore) {
+  while (sem_wait(semaphore) == -1) {
+    if (errno != EINTR)
+      return -1;
+  }
+  return 0;
+}
+
+static int room_for_type(const char *type) {
+  if (strcmp(type, "CARDIO") == 0)
+    return 0;
+  if (strcmp(type, "ORTHO") == 0)
+    return 1;
+  return 2;
+}
+
+static int urgency_rank(const char *urgency) {
+  if (strcmp(urgency, "HIGH") == 0)
+    return 3;
+  if (strcmp(urgency, "MEDIUM") == 0)
+    return 2;
+  return 1;
+}
+
+static int has_better_ready_surgery(int index) {
+  active_surgery_t *candidate = &surgery_list[index];
+  for (int i = 0; i < MAX_CONCURRENT_SURGERIES; i++) {
+    active_surgery_t *other = &surgery_list[i];
+    if (i == index || !other->active || !other->ready ||
+        room_for_type(other->type) != candidate->room_index)
+      continue;
+    int other_urgency = urgency_rank(other->command.urgency);
+    int candidate_urgency = urgency_rank(candidate->command.urgency);
+    if (other_urgency > candidate_urgency ||
+        (other_urgency == candidate_urgency &&
+         other->command.scheduled_time < candidate->command.scheduled_time) ||
+        (other_urgency == candidate_urgency &&
+         other->command.scheduled_time == candidate->command.scheduled_time && i < index))
+      return 1;
+  }
+  return 0;
+}
+
+static int claim_surgery_room(int index) {
+  mutex_lock(&list_mutex, "SurgerySchedule");
+  active_surgery_t *surgery = &surgery_list[index];
+  while (keep_running && (occupied_rooms[surgery->room_index] || has_better_ready_surgery(index)))
+    pthread_cond_wait(&schedule_condition, &list_mutex);
+  if (!keep_running) {
+    surgery->ready = 0;
+    mutex_unlock(&list_mutex, "SurgerySchedule");
+    return -1;
+  }
+  occupied_rooms[surgery->room_index] = 1;
+  surgery->ready = 0;
+  mutex_unlock(&list_mutex, "SurgerySchedule");
+  return 0;
+}
+
+static void release_surgery_room(int room_index) {
+  mutex_lock(&list_mutex, "SurgeryRelease");
+  occupied_rooms[room_index] = 0;
+  pthread_cond_broadcast(&schedule_condition);
+  mutex_unlock(&list_mutex, "SurgeryRelease");
+}
 
 static void handle_shutdown(int s) {
   (void)s;
@@ -64,7 +136,8 @@ int get_surgery_duration(const char *type) {
 int get_cleanup_duration(void) {
   return config.cleanup_min_time + rand() % (config.cleanup_max_time - config.cleanup_min_time + 1);
 }
-void send_request(int mq_id, int type, const char *target, const char *pid, const char *data) {
+void send_request(int mq_id, int type, const char *target, const char *pid,
+                  const command_t *command) {
   hospital_message_t msg;
   memset(&msg, 0, sizeof(msg));
   msg.msg_priority = type;
@@ -73,8 +146,9 @@ void send_request(int mq_id, int type, const char *target, const char *pid, cons
   strcpy(msg.target, target);
   strcpy(msg.patient_id, pid);
   msg.timestamp = time(NULL);
-  if (data)
-    strcpy(msg.data, data);
+  msg.command = *command;
+  if (type == MSG_PHARMACY_REQUEST)
+    msg.msg_priority = PHARMACY_URGENT;
   size_t msg_sz = sizeof(hospital_message_t) - sizeof(long);
   if (msgsnd(mq_id, &msg, msg_sz, 0) == -1) { /* ignore */
   } else
@@ -86,7 +160,7 @@ void *thread_response_monitor(void *arg) {
   hospital_message_t msg;
   size_t msg_sz = sizeof(hospital_message_t) - sizeof(long);
   while (keep_running) {
-    if (msgrcv(mq_resp_id, &msg, msg_sz, 0, 0) == -1) {
+    if (msgrcv(mq_resp_id, &msg, msg_sz, RESPONSE_SURGERY, 0) == -1) {
       if (errno == EINTR)
         continue;
       break;
@@ -117,10 +191,15 @@ void *thread_surgery_execution(void *arg) {
   active_surgery_t *s = &surgery_list[idx];
 
   printf("[SURGERY] A iniciar proc. cirurgia para %s\n", s->patient_id);
-  send_request(mq_urgent_id, MSG_LAB_REQUEST, "LAB", s->patient_id,
-               "priority:URGENT tests:[PREOP]");
-  send_request(mq_urgent_id, MSG_PHARMACY_REQUEST, "PHARMACY", s->patient_id,
-               "priority:URGENT items:[ANESTESICO_C:1]");
+  command_t lab_command = s->command;
+  lab_command.kind = COMMAND_LAB_REQUEST;
+  lab_command.priority = COMMAND_PRIORITY_URGENT;
+  snprintf(lab_command.lab, sizeof(lab_command.lab), "BOTH");
+  command_t pharmacy_command = s->command;
+  pharmacy_command.kind = COMMAND_PHARMACY_REQUEST;
+  pharmacy_command.priority = COMMAND_PRIORITY_URGENT;
+  send_request(mq_urgent_id, MSG_LAB_REQUEST, "LAB", s->patient_id, &lab_command);
+  send_request(mq_urgent_id, MSG_PHARMACY_REQUEST, "PHARMACY", s->patient_id, &pharmacy_command);
 
   mutex_lock(&s->mutex, "SurgeryWait");
   while ((!s->lab_completed || !s->meds_completed) && keep_running) {
@@ -129,28 +208,53 @@ void *thread_surgery_execution(void *arg) {
   mutex_unlock(&s->mutex, "SurgeryWait");
 
   if (!keep_running)
-    return NULL;
+    goto finish;
+
+  mutex_lock(&list_mutex, "SurgeryReady");
+  s->ready = 1;
+  pthread_cond_broadcast(&schedule_condition);
+  mutex_unlock(&list_mutex, "SurgeryReady");
+
+  while (keep_running) {
+    int simulation_time;
+    pthread_mutex_lock(&g_stats->mutex);
+    simulation_time = g_stats->simulation_time_units;
+    pthread_mutex_unlock(&g_stats->mutex);
+    if (simulation_time >= s->command.scheduled_time)
+      break;
+    wait_time_units(1);
+  }
+  if (!keep_running)
+    goto finish;
+
+  if (claim_surgery_room(idx) != 0)
+    goto finish;
 
   sem_t *my_room_sem = NULL;
-  int room_shm_index = -1;
+  int room_shm_index = s->room_index;
   if (strcmp(s->type, "CARDIO") == 0) {
     my_room_sem = sem_bo1;
-    room_shm_index = 0;
   } else if (strcmp(s->type, "ORTHO") == 0) {
     my_room_sem = sem_bo2;
-    room_shm_index = 1;
   } else {
     my_room_sem = sem_bo3;
-    room_shm_index = 2;
   }
 
-  sem_wait(my_room_sem);
-  sem_wait(sem_teams);
+  if (wait_for_semaphore(my_room_sem) != 0) {
+    release_surgery_room(room_shm_index);
+    goto finish;
+  }
+  if (wait_for_semaphore(sem_teams) != 0) {
+    sem_post(my_room_sem);
+    release_surgery_room(room_shm_index);
+    goto finish;
+  }
 
   mutex_lock(&g_shm_bo->rooms[room_shm_index].mutex, "RoomLock");
   g_shm_bo->rooms[room_shm_index].status = 1;
   strcpy(g_shm_bo->rooms[room_shm_index].current_patient, s->patient_id);
   mutex_unlock(&g_shm_bo->rooms[room_shm_index].mutex, "RoomLock");
+  log_event(LOG_INFO, "SURGERY", "START", s->patient_id);
 
   wait_time_units(get_surgery_duration(s->type));
   sem_post(sem_teams);
@@ -165,6 +269,7 @@ void *thread_surgery_execution(void *arg) {
   g_shm_bo->rooms[room_shm_index].current_patient[0] = '\0';
   mutex_unlock(&g_shm_bo->rooms[room_shm_index].mutex, "RoomFree");
   sem_post(my_room_sem);
+  release_surgery_room(room_shm_index);
 
   if (g_stats) {
     pthread_mutex_lock(&g_stats->mutex);
@@ -178,6 +283,8 @@ void *thread_surgery_execution(void *arg) {
     pthread_mutex_unlock(&g_stats->mutex);
   }
   printf("[SURGERY] Concluida %s\n", s->patient_id);
+  log_event(LOG_INFO, "SURGERY", "COMPLETE", s->patient_id);
+finish:
   mutex_lock(&list_mutex, "SurgeryEnd");
   s->active = 0;
   mutex_unlock(&list_mutex, "SurgeryEnd");
@@ -198,8 +305,15 @@ void *thread_surgery_manager(void *arg) {
     printf("[SURGERY] Comando recebido: %s\n", msg.patient_id);
     mutex_lock(&list_mutex, "NewSurgery");
     int slot = -1;
-    for (int i = 0; i < MAX_CONCURRENT_SURGERIES; i++) {
+    int slot_limit = config.max_surgeries_pending;
+    if (slot_limit <= 0 || slot_limit > MAX_CONCURRENT_SURGERIES)
+      slot_limit = MAX_CONCURRENT_SURGERIES;
+    for (int i = 0; i < slot_limit; i++) {
       if (!surgery_list[i].active) {
+        if (surgery_list[i].thread_started) {
+          pthread_join(surgery_list[i].thread, NULL);
+          surgery_list[i].thread_started = 0;
+        }
         slot = i;
         break;
       }
@@ -210,18 +324,29 @@ void *thread_surgery_manager(void *arg) {
       strcpy(s->patient_id, msg.patient_id);
       s->lab_completed = 0;
       s->meds_completed = 0;
-      if (strstr(msg.data, "CARDIO"))
-        strcpy(s->type, "CARDIO");
-      else if (strstr(msg.data, "ORTHO"))
-        strcpy(s->type, "ORTHO");
-      else
-        strcpy(s->type, "NEURO");
+      s->command = msg.command;
+      snprintf(s->type, sizeof(s->type), "%s", msg.command.surgery_type);
+      s->room_index = room_for_type(s->type);
+      s->ready = 0;
 
-      pthread_t t;
       int *arg_idx = malloc(sizeof(int));
+      if (arg_idx == NULL) {
+        s->active = 0;
+        mutex_unlock(&list_mutex, "NewSurgery");
+        continue;
+      }
       *arg_idx = slot;
-      pthread_create(&t, NULL, thread_surgery_execution, arg_idx);
-      pthread_detach(t);
+      if (pthread_create(&s->thread, NULL, thread_surgery_execution, arg_idx) == 0)
+        s->thread_started = 1;
+      else {
+        free(arg_idx);
+        s->active = 0;
+      }
+    } else {
+      log_event(LOG_WARNING, "SURGERY", "REJECT", msg.patient_id);
+      pthread_mutex_lock(&g_stats->mutex);
+      g_stats->cancelled_surgeries++;
+      pthread_mutex_unlock(&g_stats->mutex);
     }
     mutex_unlock(&list_mutex, "NewSurgery");
   }
@@ -268,12 +393,24 @@ int surgery_main(int argc, char *argv[]) {
     pthread_mutex_init(&surgery_list[i].mutex, NULL);
     pthread_cond_init(&surgery_list[i].cond, NULL);
   }
+  mutex_lock(&list_mutex, "ScheduleShutdown");
+  pthread_cond_broadcast(&schedule_condition);
+  mutex_unlock(&list_mutex, "ScheduleShutdown");
 
   pthread_create(&t_manager, NULL, thread_surgery_manager, NULL);
   pthread_create(&t_resp, NULL, thread_response_monitor, NULL);
 
   pthread_join(t_manager, NULL);
   pthread_join(t_resp, NULL);
+
+  for (int i = 0; i < MAX_CONCURRENT_SURGERIES; i++) {
+    mutex_lock(&surgery_list[i].mutex, "SurgeryShutdown");
+    pthread_cond_broadcast(&surgery_list[i].cond);
+    mutex_unlock(&surgery_list[i].mutex, "SurgeryShutdown");
+  }
+  for (int i = 0; i < MAX_CONCURRENT_SURGERIES; i++)
+    if (surgery_list[i].thread_started)
+      pthread_join(surgery_list[i].thread, NULL);
 
   if (g_stats)
     shmdt(g_stats);
