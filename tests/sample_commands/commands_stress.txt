@@ -1,0 +1,30 @@
+# === CENÁRIO DE STRESS ===
+# Envio rápido de múltiplos comandos para encher o Pipe e as Filas IPC
+
+# Lote 1: Enchente na Triagem
+EMERGENCY PAC_STR_01 init: 0 triage: 5 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_02 init: 0 triage: 4 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_03 init: 0 triage: 3 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_04 init: 0 triage: 2 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_05 init: 0 triage: 1 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_06 init: 0 triage: 5 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_07 init: 0 triage: 4 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_08 init: 0 triage: 3 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_09 init: 0 triage: 2 stability: 100 tests: [] meds: []
+EMERGENCY PAC_STR_10 init: 0 triage: 1 stability: 100 tests: [] meds: []
+
+# Lote 2: Pressão na Farmácia (Múltiplos pedidos pequenos)
+PHARMACY_REQUEST REQ_STR_01 init: 0 priority: NORMAL items: [ANALGESICO_A:1]
+PHARMACY_REQUEST REQ_STR_02 init: 0 priority: NORMAL items: [ANALGESICO_A:1]
+PHARMACY_REQUEST REQ_STR_03 init: 0 priority: NORMAL items: [ANALGESICO_A:1]
+PHARMACY_REQUEST REQ_STR_04 init: 0 priority: NORMAL items: [ANALGESICO_A:1]
+PHARMACY_REQUEST REQ_STR_05 init: 0 priority: NORMAL items: [ANALGESICO_A:1]
+
+# Lote 3: Cirurgias em Fila (Vai exceder as equipas médicas disponíveis)
+SURGERY PAC_STR_11 init: 0 type: CARDIO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
+SURGERY PAC_STR_12 init: 0 type: ORTHO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
+SURGERY PAC_STR_13 init: 0 type: NEURO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
+SURGERY PAC_STR_14 init: 0 type: CARDIO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
+SURGERY PAC_STR_15 init: 0 type: ORTHO scheduled: 0 urgency: LOW tests: [PREOP] meds: []
+
+STATUS ALL

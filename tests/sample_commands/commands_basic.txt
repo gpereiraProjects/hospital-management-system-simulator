@@ -1,0 +1,15 @@
+# === CENÁRIO BÁSICO ===
+# 1. Uma emergência grave (Triage Nível 1 - Vermelho)
+EMERGENCY PAC_BAS_01 init: 0 triage: 1 stability: 40 tests: [HEMO] meds: [ANALGESICO_A]
+
+# 2. Uma consulta agendada de rotina
+APPOINTMENT PAC_BAS_02 init: 5 scheduled: 100 doctor: CARDIO tests: []
+
+# 3. Um pedido direto à farmácia (ex: reposição de stock de enfermaria)
+PHARMACY_REQUEST REQ_BAS_01 init: 10 priority: NORMAL items: [VITAMINA_N:5]
+
+# 4. Uma cirurgia completa (que vai desencadear Lab e Farmácia internamente)
+SURGERY PAC_BAS_03 init: 15 type: ORTHO scheduled: 200 urgency: LOW tests: [PREOP] meds: [ANESTESICO_C]
+
+# 5. Pedido de estado do sistema
+STATUS ALL

@@ -1,0 +1,25 @@
+# === CENÁRIO COMPLEXO ===
+
+# -- Teste de Prioridade na Triagem --
+# Paciente pouco urgente chega primeiro
+EMERGENCY PAC_CPX_01 init: 0 triage: 4 stability: 90 tests: [] meds: [ANALGESICO_A]
+# Paciente muito urgente chega depois (deve ser atendido antes do 01 se houver fila)
+EMERGENCY PAC_CPX_02 init: 0 triage: 1 stability: 30 tests: [HEMO] meds: [ADRENALINA]
+# Consulta normal
+APPOINTMENT PAC_CPX_03 init: 0 scheduled: 50 doctor: NEURO tests: []
+
+# -- Teste de Recursos dos Blocos Operatórios --
+# Enviar 3 cirurgias para ocupar as 3 salas (B01, B02, B03)
+# Cardio (B01)
+SURGERY PAC_CPX_04 init: 5 type: CARDIO scheduled: 10 urgency: HIGH tests: [PREOP] meds: [ANESTESICO_C]
+# Ortopedia (B02)
+SURGERY PAC_CPX_05 init: 5 type: ORTHO scheduled: 10 urgency: HIGH tests: [PREOP] meds: [ANESTESICO_C]
+# Neurologia (B03)
+SURGERY PAC_CPX_06 init: 5 type: NEURO scheduled: 10 urgency: HIGH tests: [PREOP] meds: [ANESTESICO_C]
+
+# -- Pedidos Concorrentes à Farmácia --
+PHARMACY_REQUEST REQ_CPX_01 init: 2 priority: URGENT items: [ANTIBIOTICO_B:10]
+PHARMACY_REQUEST REQ_CPX_02 init: 2 priority: NORMAL items: [SUPLEMENTO_O:20]
+
+# -- Verificar Estado --
+STATUS ALL

@@ -1,0 +1,44 @@
+# === Compilação C ===
+*.o
+*.obj
+*.d
+
+# === Executáveis ===
+hospital_system
+*.exe
+*.out
+
+# === Named Pipes (CRÍTICO: Nunca enviar isto) ===
+# Estes ficheiros bloqueiam o git se forem comitados
+input_pipe
+triage_pipe
+surgery_pipe
+pharmacy_pipe
+lab_pipe
+
+# === Logs e Ficheiros de Execução ===
+logs/*.txt
+*.log
+
+# === Resultados Gerados ===
+# Ignora os txts gerados, mas mantém a estrutura de pastas
+results/lab_results/*.txt
+results/pharmacy_deliveries/*.txt
+results/stats_snapshots/*.txt
+
+# === Valgrind e Debug ===
+valgrind_*.log
+core
+
+# === Sistema Operativo e IDEs ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# === Diretórios temporários e builds futuros ===
+tmp/
+build/
+
+# Relatório académico removido da edição de portefólio
+/REPORT.pdf
