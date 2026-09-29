@@ -1,50 +1,30 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Definições de cores
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
+source tests/test_helpers.sh
+test_setup
+trap test_cleanup EXIT
+test_fast_config
+test_start
 
-BINARY="${BINARY:-build/release/bin/hospital_system}"
-PIPE="input_pipe"
-LOG="logs/hospital_log.txt"
+test_send \
+  'EMERGENCY BSC001 init:0 triage:1 stability:100 tests:[HEMO] meds:[]' \
+  'APPOINTMENT BSC002 init:0 scheduled:1 doctor:CARDIO tests:[]' \
+  'SURGERY BSC003 init:0 type:ORTHO scheduled:1 urgency:HIGH tests:[PREOP] meds:[ANEST_C]' \
+  'PHARMACY_REQUEST BSC004 init:0 priority:URGENT items:[ANALG_A:2]'
 
-echo -e "${GREEN}=== INICIANDO TESTE BÁSICO ===${NC}"
+test_wait_log_count '\[TRIAGE\].*\[COMPLETE\] BSC00[12]' 2
+test_wait_log_count '\[SURGERY\].*\[COMPLETE\] BSC003' 1
+test_wait_log_count '\[PHARMACY\].*\[DELIVERED\] BSC004' 1
+test_snapshot
 
-# 1. Limpeza
-rm -f $PIPE $LOG
-# Garante que as pastas existem para não dar erro
-mkdir -p results/lab_results results/pharmacy_deliveries results/stats_snapshots logs
+grep -q 'Total Emergências: 1' "$TEST_SNAPSHOT"
+grep -q 'Total Consultas: 1' "$TEST_SNAPSHOT"
+grep -q 'B02 (Ortopedia): 1 cirurgias' "$TEST_SNAPSHOT"
+grep -q 'Cirurgias Concluídas: 1' "$TEST_SNAPSHOT"
+grep -q 'Erros Sistema: 0' "$TEST_SNAPSHOT"
+grep -q 'Estado: VALIDADO' "$TEST_RUNTIME_DIR"/results/lab_results/lab_results_BSC003_*.txt
+grep -q 'Estado: ENTREGUE' "$TEST_RUNTIME_DIR"/results/pharmacy_deliveries/pharmacy_delivery_BSC004_*.txt
 
-# 2. Arrancar
-./$BINARY &
-PID=$!
-sleep 2
-
-# 3. Enviar Comandos
-echo "Enviando comandos..."
-
-echo "EMERGENCY PAC001 init: 0 triage: 1 stability: 100 tests: [HEMO] meds: [ANALGESICO_A]" > $PIPE
-sleep 0.5
-echo "APPOINTMENT PAC002 init: 5 scheduled: 50 doctor: CARDIO tests: []" > $PIPE
-sleep 0.5
-echo "SURGERY PAC003 init: 10 type: ORTHO scheduled: 100 urgency: LOW tests: [PREOP] meds: [ANESTESICO_C]" > $PIPE
-sleep 0.5
-echo "PHARMACY_REQUEST REQ001 init: 5 priority: URGENT items: [ANALGESICO_A:10]" > $PIPE
-
-# 4. Aguardar
-echo "Aguardando processamento (30 segundos)..."
-sleep 30
-
-# --- ADIÇÃO: PEDIR ESTATÍSTICAS ---
-echo "Solicitando Snapshot (SIGUSR2)..."
-kill -SIGUSR2 $PID
-sleep 1
-# ----------------------------------
-
-# 6. Parar
-echo "Encerramento (SIGINT)..."
-kill -SIGINT $PID
-wait $PID
-
-echo -e "${GREEN}Teste concluído. Verifica a pasta results/stats_snapshots/${NC}"
+test_stop
+echo 'basic black-box scenario: all assertions passed'

@@ -17,7 +17,7 @@ Status values:
 
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
-| ARC-01 | One central process and four specialized child processes | Implemented | `main.c` creates triage, surgery, pharmacy, and laboratory children | Integration test verifies PIDs and clean exit |
+| ARC-01 | One central process and four specialized child processes | Implemented | `main.c` creates triage, surgery, pharmacy, and laboratory children | `test_shutdown.sh` verifies that captured children are reaped on clean exit |
 | ARC-02 | Required thread model in every component | Partial | Triage, pharmacy, and laboratory roles are explicit; surgery uses a central priority scheduler plus operation threads rather than three long-lived room managers | Runtime thread-role assertions and architecture rationale |
 | IPC-01 | Three System V message queues | Implemented | Urgent, normal, and response queues are created | IPC lifecycle integration test |
 | IPC-02 | Five System V shared-memory segments with usable state | Implemented | Statistics, rooms, stock, laboratory state, and the critical-event ring buffer are initialized and used | Functional integration and status assertions |
@@ -45,7 +45,7 @@ Status values:
 | TRI-03 | Appointment ordering by scheduled time | Implemented | Doctors select only due appointments, ordered by scheduled time | Functional integration |
 | TRI-04 | Stability decreases and triggers critical/transfer states | Implemented | A monitor decrements waiting emergencies and records critical transitions/transfers | Transfer timing test remains desirable |
 | TRI-05 | Coordinate requested analyses and medication | Implemented | Typed requests are dispatched and treatment waits on correlated laboratory/pharmacy responses | Emergency integration in `test_phase3.sh` |
-| TRI-06 | Capacity, rejection, timing, and completion statistics | Implemented | Per-class limits, duplicate rejection, wait totals, and completion counters are maintained | Known-workload metrics test |
+| TRI-06 | Capacity, rejection, timing, and completion statistics | Implemented | Per-class limits, duplicate rejection, wait totals, and completion counters are maintained | Exact known-workload counters in `test_basic.sh` and `test_stress.sh` |
 
 ## Surgery
 
@@ -82,25 +82,24 @@ Status values:
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
 | SYS-01 | Parse and validate every documented configuration value | Implemented | Strict integer parsing, required medicine count, booleans, positive capacities/durations, min/max relations, and stock thresholds are validated | Invalid configuration startup assertion in `test_phase3.sh` |
-| SYS-02 | Thread-safe and coherent multi-process logging | Implemented | Each record is emitted as one append-only write; local mutexes serialize threads without inherited buffered streams | Concurrent integrity stress test remains desirable |
+| SYS-02 | Thread-safe and coherent multi-process logging | Implemented | Each record is emitted as one append-only write; local mutexes serialize threads without inherited buffered streams | Concurrent and 100-command tests assert complete, parseable event counts |
 | SYS-03 | Critical-event shared-memory ring buffer | Implemented | Warning/error/critical events are stored in the process-shared circular buffer | Wraparound test remains desirable |
 | SYS-04 | Accurate real-time and snapshot statistics | Partial | Several counters/timers are never updated and a total is labelled as an average | Known-workload metrics test |
 | SYS-05 | Safe `SIGINT`, `SIGUSR1`, `SIGUSR2`, and `SIGCHLD` | Implemented | Handlers only set atomic flags; reporting, snapshots, child reaping, and cleanup run in normal control flow | Signal checks in `test_phase2.sh` |
-| SYS-06 | Graceful shutdown waits for work, reaps children, and removes owned IPC | Partial | Input, surgery, laboratory, pharmacy, and triage threads are joined and a final snapshot is written; work awaiting removed dependencies can still be aborted | Shutdown-under-load completion test |
+| SYS-06 | Graceful shutdown waits for work, reaps children, and removes owned IPC | Partial | `test_shutdown.sh` proves bounded exit, child reaping, final snapshot, and FIFO/lock cleanup under active work; requests awaiting dependencies may still be aborted by the defined shutdown sequence | Define and test drain-versus-cancel semantics for every accepted request |
 | SYS-07 | Check all system-call, allocation, and pthread results | Partial | Many critical return values are ignored | Static checklist and fault-injection tests |
 
 ## Tests and delivery quality
 
 | ID | Requirement | Status | Evidence / gap | Target verification |
 |---|---|---|---|---|
-| TST-01 | All seven mandatory scenarios | Partial | Parser, safety, stock depletion/restock, transfer, surgery priority, dependencies, outputs, and multi-component workflows are asserted; 100-command stress remains a legacy scenario | Complete the remaining bounded stress scenario |
+| TST-01 | All seven mandatory scenarios | Implemented | Parser, safety, stock depletion/restock, transfer, priorities, dependencies, outputs, concurrency, exact statistics, shutdown under load, and a deterministic 100-command workload are asserted | Preserve in CI |
 | TST-02 | Tests fail when expected behavior is absent | Implemented | Parser, Phase 2, and Phase 3 suites use bounded waits and content/state assertions | Preserve in CI |
-| TST-03 | Zero leaks, detected races, and deadlocks | Partial | Full Phase 3 integration passes AddressSanitizer and UndefinedBehaviorSanitizer; race/deadlock tooling remains | Valgrind/Helgrind/DRD jobs tied to a commit |
+| TST-03 | Zero leaks, detected races, and deadlocks | Implemented | Sanitizers pass; `test_instrumented.sh` runs a real workload under Memcheck, Helgrind, and DRD. Signal state is C11-atomic. Narrow suppressions document glibc TLS and DRD post-fork named-semaphore modelling limitations | Preserve all analyzers in CI |
 | TST-04 | Reproducible clean-checkout build | Implemented | Release, debug, and sanitizer profiles build without warnings using GCC 15 and Clang 21 on Ubuntu/WSL; Dockerfile targets Ubuntu 24.04 | Preserve the matrix in continuous integration |
 
 ## Remaining implementation order
 
-1. Complete exact utilization/throughput statistics and shutdown-under-load semantics.
-2. Replace the legacy 100-command stress scenario with bounded assertions.
-3. Add Valgrind race/deadlock jobs and continuous integration.
-4. Finish public architecture documentation and prepare the first release.
+1. Complete utilization/throughput statistics and define drain-versus-cancel shutdown semantics.
+2. Add the existing functional and dynamic-analysis targets to continuous integration.
+3. Finish public architecture documentation and prepare the first release.

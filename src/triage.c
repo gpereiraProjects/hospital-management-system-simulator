@@ -1,6 +1,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +36,7 @@ static patient_t *patients;
 static int patient_capacity;
 static system_config_t triage_config;
 static global_statistics_t *statistics;
-static volatile sig_atomic_t keep_running = 1;
+static atomic_bool keep_running = ATOMIC_VAR_INIT(true);
 static int normal_queue = -1;
 static int urgent_queue = -1;
 static int response_queue = -1;

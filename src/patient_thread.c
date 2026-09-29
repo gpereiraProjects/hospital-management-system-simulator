@@ -1,6 +1,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +19,7 @@
 extern int mq_urgent_id;
 extern int mq_normal_id;
 extern global_statistics_t *g_stats_ptr;
-extern volatile sig_atomic_t shutdown_requested;
+extern atomic_bool shutdown_requested;
 extern system_config_t config;
 
 static pthread_mutex_t lifecycle_mutex = PTHREAD_MUTEX_INITIALIZER;

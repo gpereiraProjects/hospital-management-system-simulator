@@ -71,12 +71,9 @@ $(BIN_DIR):
 run: release
 	./$(BUILD_ROOT)/release/bin/$(PROJECT)
 
-test: test_phase2 test_phase3
+test: test_parser test_phase2 test_phase3 test_scenarios
 
-test_legacy: release
-	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_basic.sh
-	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_concurrent.sh
-	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_stress.sh
+test_scenarios: test_basic test_concurrent test_stress test_shutdown
 
 test_basic: release
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_basic.sh
@@ -86,6 +83,9 @@ test_concurrent: release
 
 test_stress: release
 	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_stress.sh
+
+test_shutdown: release
+	BINARY=$(BUILD_ROOT)/release/bin/$(PROJECT) bash ./tests/test_shutdown.sh
 
 test_parser:
 	@mkdir -p $(BUILD_ROOT)/tests
@@ -106,13 +106,15 @@ format-check:
 	clang-format --dry-run --Werror $(SOURCES) include/*.h
 
 check_memory: debug
-	valgrind --leak-check=full --show-leak-kinds=all ./$(BUILD_ROOT)/debug/bin/$(PROJECT)
+	BINARY=$(BUILD_ROOT)/debug/bin/$(PROJECT) bash ./tests/test_instrumented.sh memcheck
 
 check_threads: debug
-	valgrind --tool=helgrind ./$(BUILD_ROOT)/debug/bin/$(PROJECT)
+	BINARY=$(BUILD_ROOT)/debug/bin/$(PROJECT) bash ./tests/test_instrumented.sh helgrind
 
 check_deadlock: debug
-	valgrind --tool=drd ./$(BUILD_ROOT)/debug/bin/$(PROJECT)
+	BINARY=$(BUILD_ROOT)/debug/bin/$(PROJECT) bash ./tests/test_instrumented.sh drd
+
+check_runtime: check_memory check_threads check_deadlock
 
 clean:
 	rm -rf $(BUILD_ROOT)
@@ -127,6 +129,7 @@ ipc_clean:
 
 -include $(DEPENDENCIES)
 
-.PHONY: release debug sanitize build run test test_basic test_concurrent \
-	test_stress test_legacy test_parser test_phase2 test_phase3 format format-check check_memory check_threads check_deadlock \
+.PHONY: release debug sanitize build run test test_scenarios test_basic test_concurrent \
+	test_stress test_shutdown test_parser test_phase2 test_phase3 format format-check \
+	check_memory check_threads check_deadlock check_runtime \
 	clean clean-runtime ipc_clean

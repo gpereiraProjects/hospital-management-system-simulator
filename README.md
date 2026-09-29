@@ -110,6 +110,8 @@ make test           # run the reliable automated suite
 make test_parser    # run the typed-command parser unit suite
 make test_phase2    # run parser, FIFO, signal, lock, and cleanup assertions
 make test_phase3    # run end-to-end clinical, stock, lab, and surgery workflows
+make test_scenarios # run basic, concurrent, 100-command, and shutdown scenarios
+make check_runtime  # run Memcheck, Helgrind, and DRD on a real workload
 make clean          # remove build products only
 make clean-runtime  # remove this project's generated runtime files
 ```
@@ -118,11 +120,12 @@ Runtime cleanup is instance-specific and only resolves this application's known
 keys and names. The old standalone broad cleanup command remains disabled so it
 can never remove `/dev/shm` or System V resources belonging to other programs.
 
-The parser, runtime-safety, and functional integration suites are
-assertion-based. The three older, long-running scenarios are retained as a
-behavioral baseline while the remaining stress coverage is converted into a
-bounded automated test; progress is tracked in the
-[requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md).
+Every automated scenario is assertion-based and time-bounded. Tests run from
+isolated native-Linux temporary directories, verify generated files and exact
+statistics, and clean up their processes, pipes, locks, and IPC resources. The
+stress scenario sends exactly 100 validated commands and proves that every
+request is accepted and completed. Dynamic-analysis targets exercise a real
+multi-component workload under Memcheck, Helgrind, and DRD.
 
 ## Documentation
 

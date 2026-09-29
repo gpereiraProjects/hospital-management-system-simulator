@@ -2,6 +2,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +21,7 @@
 static system_config_t pharmacy_config;
 static global_statistics_t *statistics;
 static pharmacy_shm_t *stock;
-static volatile sig_atomic_t keep_running = 1;
+static atomic_bool keep_running = ATOMIC_VAR_INIT(true);
 static int urgent_queue = -1;
 static int normal_queue = -1;
 static int response_queue = -1;

@@ -83,6 +83,32 @@ make format-check
 All C sources and headers are kept formatted; `make format-check` is part of the
 pre-publication validation.
 
+## Automated validation
+
+Run the complete functional suite with:
+
+```bash
+make test
+```
+
+The tests stage the executable and configuration in a fresh native-Linux
+temporary directory. They use bounded condition-based waits rather than fixed
+long sleeps, assert logs, generated reports, exact known-workload statistics,
+100-command completion, and cleanup after shutdown under load.
+
+Run the dynamic-analysis workload with:
+
+```bash
+make check_runtime
+```
+
+This executes Memcheck, Helgrind, and DRD against the debug build and fails on
+reported leaks, races, or synchronization errors. `tests/valgrind.supp` contains
+only two documented tool limitations: a glibc TLS stack-cache report and DRD's
+loss of named-semaphore identity when a child reopens a semaphore inherited
+through `fork()`. Application stacks outside those narrow patterns remain
+visible and fail the target.
+
 ## Runtime artifacts
 
 The executable creates logs, results, IPC key material, and named pipes at

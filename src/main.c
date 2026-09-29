@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,10 +32,10 @@ extern int surgery_main(int argc, char *argv[]);
 extern int pharmacy_main(int argc, char *argv[]);
 extern int laboratory_main(int argc, char *argv[]);
 
-volatile sig_atomic_t shutdown_requested;
-static volatile sig_atomic_t stats_requested;
-static volatile sig_atomic_t snapshot_requested;
-static volatile sig_atomic_t child_changed;
+atomic_bool shutdown_requested;
+static atomic_bool stats_requested;
+static atomic_bool snapshot_requested;
+static atomic_bool child_changed;
 
 system_config_t config;
 global_statistics_t *g_stats_ptr;

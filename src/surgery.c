@@ -3,6 +3,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +45,7 @@ static int occupied_rooms[MAX_ROOMS];
 static system_config_t config;
 static global_statistics_t *g_stats = NULL;
 static surgery_block_shm_t *g_shm_bo = NULL;
-static volatile sig_atomic_t keep_running = 1;
+static atomic_bool keep_running = ATOMIC_VAR_INIT(true);
 
 static int mq_urgent_id = -1;
 static int mq_resp_id = -1;

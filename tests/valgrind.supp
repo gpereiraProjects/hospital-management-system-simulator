@@ -1,0 +1,40 @@
+{
+   glibc-thread-stack-cache-tls-reuse
+   Helgrind:Race
+   fun:mempcpy
+   fun:_dl_allocate_tls_init
+   fun:get_cached_stack
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.34
+}
+{
+   drd-named-semaphore-reopen-after-fork
+   drd:SemaphoreErr
+   fun:sem_open_intercept
+   fun:sem_open@*
+   ...
+   fun:start_child
+   fun:main
+}
+{
+   drd-named-semaphore-wait-in-laboratory-child
+   drd:SemaphoreErr
+   fun:sem_wait_intercept
+   fun:sem_wait@*
+   fun:execute_in_lab
+   fun:execute_request
+   fun:vgDrd_thread_wrapper
+   fun:start_thread
+   fun:clone
+}
+{
+   drd-named-semaphore-wait-in-surgery-child
+   drd:SemaphoreErr
+   fun:sem_wait_intercept
+   fun:sem_wait@*
+   fun:wait_for_semaphore
+   fun:thread_surgery_execution
+   fun:vgDrd_thread_wrapper
+   fun:start_thread
+   fun:clone
+}

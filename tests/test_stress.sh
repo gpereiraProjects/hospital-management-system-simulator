@@ -1,49 +1,54 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+source tests/test_helpers.sh
+test_setup
+trap test_cleanup EXIT
+test_fast_config
+test_start
 
-BINARY="${BINARY:-build/release/bin/hospital_system}"
-PIPE="input_pipe"
-LOG="logs/hospital_log.txt"
-
-echo -e "${GREEN}=== INICIANDO TESTE DE STRESS ===${NC}"
-
-rm -f $PIPE $LOG
-mkdir -p results/stats_snapshots logs
-./$BINARY &
-PID=$!
-sleep 2
-
-# Loop infinito de comandos por 30 segundos
-END_TIME=$((SECONDS+30))
-COUNTER=0
-
-while [ $SECONDS -lt $END_TIME ]; do
-    let COUNTER=COUNTER+1
-    TYPE=$(( (RANDOM % 3) + 1 ))
-    
-    case $TYPE in
-        1) echo "EMERGENCY STRESS_P$COUNTER init: 0 triage: $(( (RANDOM % 5) + 1 )) stability: 500 tests: [] meds: []" > $PIPE ;;
-        2) echo "APPOINTMENT STRESS_A$COUNTER init: 0 scheduled: 100 doctor: CARDIO tests: []" > $PIPE ;;
-        3) echo "PHARMACY_REQUEST STRESS_R$COUNTER init: 0 priority: NORMAL items: [ANALGESICO_A:1]" > $PIPE ;;
-    esac
-    
-    sleep 0.1
+commands=()
+for i in $(seq -w 1 40); do
+  commands+=("EMERGENCY EMG$i init:0 triage:$((10#$i % 5 + 1)) stability:100 tests:[] meds:[]")
 done
+for i in $(seq -w 1 20); do
+  commands+=("APPOINTMENT APP$i init:0 scheduled:1 doctor:CARDIO tests:[]")
+done
+for i in $(seq -w 1 15); do
+  commands+=("PHARMACY_REQUEST PHA$i init:0 priority:NORMAL items:[VITAMINA_N:1]")
+done
+for i in $(seq -w 1 15); do
+  commands+=("LAB_REQUEST LAB$i init:0 priority:NORMAL lab:LAB1 tests:[HEMO]")
+done
+for i in $(seq -w 1 10); do
+  commands+=("SURGERY SUR$i init:0 type:ORTHO scheduled:1 urgency:MEDIUM tests:[PREOP] meds:[ANEST_C]")
+done
+[[ ${#commands[@]} -eq 100 ]]
+exec 3>"$TEST_RUNTIME_DIR/input_pipe"
+for command in "${commands[@]}"; do
+  printf '%s\n' "$command" >&3
+  sleep 0.005
+done
+exec 3>&-
 
-echo "Stress test finalizado. $COUNTER comandos enviados."
-echo "A aguardar esvaziamento das filas (10s)..."
-sleep 10
+test_wait_log_count '\[TRIAGE\].*\[COMPLETE\] (EMG|APP)[0-9][0-9]' 60
+test_wait_log_count '\[PHARMACY\].*\[DELIVERED\] PHA[0-9][0-9]' 15
+test_wait_log_count '\[LAB\].*\[COMPLETE\] LAB[0-9][0-9]' 15
+test_wait_log_count '\[SURGERY\].*\[COMPLETE\] SUR[0-9][0-9]' 10
 
-# --- ADIÇÃO: PEDIR ESTATÍSTICAS ---
-echo "Solicitando Snapshot (SIGUSR2)..."
-kill -SIGUSR2 $PID
-sleep 1
-# ----------------------------------
+log="$TEST_RUNTIME_DIR/logs/hospital_log.txt"
+[[ $(grep -c '\[INPUT\].*\[CMD_ACCEPT\]' "$log") -eq 100 ]]
+! grep -Eq '\[(QUEUE_REJECT|REJECT|PARSE_ERROR|ERROR)\]' "$log"
+[[ $(find "$TEST_RUNTIME_DIR/results/pharmacy_deliveries" -type f | wc -l) -eq 25 ]]
+[[ $(find "$TEST_RUNTIME_DIR/results/lab_results" -type f | wc -l) -eq 25 ]]
 
-kill -SIGINT $PID
-wait $PID
-
-echo -e "${GREEN}Teste Stress concluído. Verifica a pasta results/stats_snapshots/${NC}"
+test_snapshot
+grep -q 'Total Emergências: 40' "$TEST_SNAPSHOT"
+grep -q 'Total Consultas: 20' "$TEST_SNAPSHOT"
+grep -q 'Cirurgias Concluídas: 10' "$TEST_SNAPSHOT"
+grep -q 'Total Pedidos: 25' "$TEST_SNAPSHOT"
+grep -q 'Total Análises: 25 (Lab1) + 10 (Lab2)' "$TEST_SNAPSHOT"
+grep -q 'Testes PREOP: 10' "$TEST_SNAPSHOT"
+grep -q 'Erros Sistema: 0' "$TEST_SNAPSHOT"
+test_stop
+echo 'bounded 100-command stress scenario: all assertions passed'
