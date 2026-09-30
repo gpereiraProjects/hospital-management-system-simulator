@@ -1,5 +1,8 @@
 # Hospital Management System Simulator
 
+[![CI](https://github.com/gpereiraProjects/hospital-management-system-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/gpereiraProjects/hospital-management-system-simulator/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A Linux systems-programming project in C that models concurrent hospital
 services. It began as an Operating Systems practical assignment and has been
 rebuilt as a reproducible, assertion-tested portfolio project.
@@ -47,6 +50,13 @@ Windows users should build through WSL 2 or Docker. Detailed setup is available
 in [the development guide](docs/DEVELOPMENT.md).
 
 ## Quick start
+
+Clone the repository:
+
+```bash
+git clone https://github.com/gpereiraProjects/hospital-management-system-simulator.git
+cd hospital-management-system-simulator
+```
 
 Build and start the simulator:
 
