@@ -38,3 +38,31 @@
    fun:start_thread
    fun:clone
 }
+{
+   drd-3.22-named-semaphore-reopen-after-fork
+   drd:SemaphoreErr
+   fun:sem_open@*
+   ...
+   fun:start_child
+   fun:main
+}
+{
+   drd-3.22-named-semaphore-wait-in-laboratory-child
+   drd:SemaphoreErr
+   fun:sem_wait@*
+   fun:execute_in_lab
+   fun:execute_request
+   ...
+   fun:start_thread
+   fun:clone
+}
+{
+   drd-3.22-named-semaphore-wait-in-surgery-child
+   drd:SemaphoreErr
+   fun:sem_wait@*
+   fun:wait_for_semaphore
+   fun:thread_surgery_execution
+   ...
+   fun:start_thread
+   fun:clone
+}
