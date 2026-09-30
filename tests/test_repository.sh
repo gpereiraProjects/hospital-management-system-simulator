@@ -37,5 +37,12 @@ if git ls-files | grep -Eq '(^|/)(build|logs|results)/|(^|/)REPORT\.pdf$|\.out$|
   exit 1
 fi
 
+for path in src/*.c include/*.h; do
+  if [[ -n $(tail -c 1 "$path") ]]; then
+    echo "source file does not end with a newline: $path" >&2
+    exit 1
+  fi
+done
+
 git diff --check
 echo 'repository publication hygiene: all checks passed'
